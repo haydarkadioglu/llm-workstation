@@ -237,13 +237,65 @@ class ModelManager:
                         import diffusers
                         print(f"[ModelManager] Loading Stable Diffusion pipeline for '{model_id}'...")
                         
-                        self.image_pipeline = diffusers.DiffusionPipeline.from_pretrained(
-                            model_id,
-                            torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
-                            use_safetensors=True,
-                            token=hf_token
-                        )
+                        # Fallback chain to support custom and famous pipelines
+                        loaded_ok = False
+                        errs = []
+                        
+                        # 1. Try AutoPipelineForText2Image (handles most standard text-to-image architectures)
+                        try:
+                            print(f"[ModelManager] Attempting AutoPipelineForText2Image...")
+                            self.image_pipeline = diffusers.AutoPipelineForText2Image.from_pretrained(
+                                model_id,
+                                torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
+                                use_safetensors=True,
+                                token=hf_token
+                            )
+                            loaded_ok = True
+                        except Exception as e:
+                            errs.append(f"AutoPipeline: {str(e)}")
+                            
+                        # 2. Try StableDiffusionPipeline (fallback for SD 1.4/1.5/2.0/2.1 if custom pipeline fails)
+                        if not loaded_ok:
+                            try:
+                                print(f"[ModelManager Warning] AutoPipeline failed. Falling back to StableDiffusionPipeline...")
+                                self.image_pipeline = diffusers.StableDiffusionPipeline.from_pretrained(
+                                    model_id,
+                                    torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
+                                    token=hf_token
+                                )
+                                loaded_ok = True
+                            except Exception as e:
+                                errs.append(f"StableDiffusionPipeline: {str(e)}")
+                                
+                        # 3. Try StableDiffusionXLPipeline (fallback for SDXL if custom pipeline fails)
+                        if not loaded_ok:
+                            try:
+                                print(f"[ModelManager Warning] SD 1.5 failed. Falling back to StableDiffusionXLPipeline...")
+                                self.image_pipeline = diffusers.StableDiffusionXLPipeline.from_pretrained(
+                                    model_id,
+                                    torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
+                                    token=hf_token
+                                )
+                                loaded_ok = True
+                            except Exception as e:
+                                errs.append(f"StableDiffusionXLPipeline: {str(e)}")
+                                
+                        # 4. Try generic DiffusionPipeline (fallback for other pipelines like Flux, Latent Consistency Models, etc.)
+                        if not loaded_ok:
+                            try:
+                                print(f"[ModelManager Warning] SDXL failed. Falling back to generic DiffusionPipeline...")
+                                self.image_pipeline = diffusers.DiffusionPipeline.from_pretrained(
+                                    model_id,
+                                    torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
+                                    token=hf_token
+                                )
+                                loaded_ok = True
+                            except Exception as e:
+                                errs.append(f"DiffusionPipeline: {str(e)}")
+                                raise ValueError(f"Failed to load image model. Errors: {'; '.join(errs)}")
+                                
                         if torch.cuda.is_available():
+                            import torch
                             self.image_pipeline.to("cuda")
                             
                         self.model_id = model_id
