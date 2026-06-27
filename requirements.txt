@@ -1,0 +1,11 @@
+fastapi>=0.100.0
+uvicorn>=0.20.0
+pynvml>=11.5.0
+transformers>=4.38.0
+torch>=2.0.0
+bitsandbytes>=0.42.0
+accelerate>=0.26.0
+huggingface_hub>=0.20.0
+pydantic>=2.0.0
+pillow>=10.0.0
+tqdm>=4.66.0

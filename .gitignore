@@ -1,0 +1,25 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Virtual environments
+venv/
+.venv/
+env/
+.env/
+ENV/
+
+# Python caching
+.pytest_cache/
+.mypy_cache/
+
+# Local workstation credentials & tunnel binary
+cloudflared
+cloudflared.exe
+*.log
+hf_download_speed_*.json
