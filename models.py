@@ -19,49 +19,52 @@ import tqdm
 # Global reference to hook progress bar tracking
 _global_manager_ref = None
 
-# Custom Tqdm wrapper to intercept Hugging Face download and VRAM load progress
-class InterceptTqdm(tqdm.tqdm):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        desc = kwargs.get("desc", "Downloading") or ""
-        global _global_manager_ref
-        if _global_manager_ref:
-            desc_lower = desc.lower()
-            if "loading" in desc_lower or "shard" in desc_lower:
-                _global_manager_ref.status = f"Loading: {desc}"
-            else:
-                _global_manager_ref.status = f"Downloading: {desc}"
-            _global_manager_ref.loading_progress = 0
-            _global_manager_ref.loading_speed = ""
+# Store original tqdm methods for monkey patching to intercept downloads in dependencies
+import tqdm
+_original_tqdm_init = tqdm.tqdm.__init__
+_original_tqdm_update = tqdm.tqdm.update
 
-    def update(self, n=1):
-        super().update(n)
-        global _global_manager_ref
-        if _global_manager_ref:
-            mgr = _global_manager_ref
-            if self.total and self.total > 0:
-                pct = int((self.n / self.total) * 100)
-                mgr.loading_progress = pct
-                
-                desc_lower = (self.desc or "").lower()
-                is_loading_phase = "loading" in desc_lower or "shard" in desc_lower
-                
-                rate = self.format_dict.get("rate")
-                if rate is not None and not is_loading_phase:
-                    if rate > 1024 * 1024:
-                        mgr.loading_speed = f"{rate / (1024 * 1024):.1f} MB/s"
-                    elif rate > 1024:
-                        mgr.loading_speed = f"{rate / 1024:.1f} KB/s"
-                    else:
-                        mgr.loading_speed = f"{rate:.1f} B/s"
+def _patched_tqdm_init(self, *args, **kwargs):
+    _original_tqdm_init(self, *args, **kwargs)
+    desc = kwargs.get("desc", "") or ""
+    global _global_manager_ref
+    if _global_manager_ref:
+        desc_lower = desc.lower()
+        if "loading" in desc_lower or "shard" in desc_lower:
+            _global_manager_ref.status = f"Loading: {desc}"
+        else:
+            _global_manager_ref.status = f"Downloading: {desc}" if desc else "Downloading..."
+        _global_manager_ref.loading_progress = 0
+        _global_manager_ref.loading_speed = ""
+
+def _patched_tqdm_update(self, n=1):
+    _original_tqdm_update(self, n)
+    global _global_manager_ref
+    if _global_manager_ref:
+        mgr = _global_manager_ref
+        if self.total and self.total > 0:
+            pct = int((self.n / self.total) * 100)
+            mgr.loading_progress = pct
+            
+            desc_lower = (self.desc or "").lower()
+            is_loading_phase = "loading" in desc_lower or "shard" in desc_lower
+            
+            rate = self.format_dict.get("rate")
+            if rate is not None and not is_loading_phase:
+                if rate > 1024 * 1024:
+                    mgr.loading_speed = f"{rate / (1024 * 1024):.1f} MB/s"
+                elif rate > 1024:
+                    mgr.loading_speed = f"{rate / 1024:.1f} KB/s"
                 else:
-                    mgr.loading_speed = ""
-                
-                if is_loading_phase:
-                    mgr.status = f"Loading: {pct}%"
-                else:
-                    speed_str = f" ({mgr.loading_speed})" if mgr.loading_speed else ""
-                    mgr.status = f"Downloading: {pct}%{speed_str}"
+                    mgr.loading_speed = f"{rate:.1f} B/s"
+            else:
+                mgr.loading_speed = ""
+            
+            if is_loading_phase:
+                mgr.status = f"Loading: {pct}%"
+            else:
+                speed_str = f" ({mgr.loading_speed})" if mgr.loading_speed else ""
+                mgr.status = f"Downloading: {pct}%{speed_str}"
 
 def decode_base64_image(base64_str: str) -> Image.Image:
     if "," in base64_str:
@@ -249,12 +252,9 @@ class ModelManager:
                 import tqdm
                 import tqdm.auto as tqdm_auto
                 
-                orig_tqdm = tqdm.tqdm
-                orig_auto_tqdm = tqdm_auto.tqdm
-                
                 try:
-                    tqdm.tqdm = InterceptTqdm
-                    tqdm_auto.tqdm = InterceptTqdm
+                    tqdm.tqdm.__init__ = _patched_tqdm_init
+                    tqdm.tqdm.update = _patched_tqdm_update
                     
                     print(f"[ModelManager] Downloading/Verifying repository for '{model_id}'...")
                     from huggingface_hub import snapshot_download
@@ -338,8 +338,8 @@ class ModelManager:
                     print(f"[ModelManager] Model '{model_id}' successfully loaded.")
                     return True
                 finally:
-                    tqdm.tqdm = orig_tqdm
-                    tqdm_auto.tqdm = orig_auto_tqdm
+                    tqdm.tqdm.__init__ = _original_tqdm_init
+                    tqdm.tqdm.update = _original_tqdm_update
             except Exception as e:
                 self.status = "Error loading model"
                 self.error_message = str(e)
