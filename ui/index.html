@@ -702,27 +702,27 @@
                             <div class="space-y-2">
                                 <div class="flex justify-between items-center text-xs font-mono">
                                     <span class="text-slate-400">Steps:</span>
-                                    <span id="videoStepsVal" class="text-indigo-400 font-bold">20</span>
+                                    <input type="number" id="videoStepsInput" min="5" max="500" value="20" class="w-16 bg-[#080B13] border border-slate-800 focus:border-indigo-500 text-indigo-400 font-bold font-mono rounded px-1.5 py-0.5 text-right text-xs outline-none" oninput="document.getElementById('videoStepsSlider').value = this.value;">
                                 </div>
-                                <input type="range" id="videoStepsInput" min="5" max="50" value="20" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500" oninput="document.getElementById('videoStepsVal').innerText = this.value">
+                                <input type="range" id="videoStepsSlider" min="5" max="150" value="20" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500" oninput="document.getElementById('videoStepsInput').value = this.value;">
                             </div>
                             
                             <!-- Frame Count -->
                             <div class="space-y-2">
                                 <div class="flex justify-between items-center text-xs font-mono">
                                     <span class="text-slate-400">Frames:</span>
-                                    <span id="videoFramesVal" class="text-indigo-400 font-bold">16</span>
+                                    <input type="number" id="videoFramesInput" min="8" max="2000" value="16" class="w-16 bg-[#080B13] border border-slate-800 focus:border-indigo-500 text-indigo-400 font-bold font-mono rounded px-1.5 py-0.5 text-right text-xs outline-none" oninput="document.getElementById('videoFramesSlider').value = this.value; updateVideoDurationEst();">
                                 </div>
-                                <input type="range" id="videoFramesInput" min="8" max="180" step="4" value="16" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500" oninput="document.getElementById('videoFramesVal').innerText = this.value; updateVideoDurationEst();">
+                                <input type="range" id="videoFramesSlider" min="8" max="500" step="4" value="16" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500" oninput="document.getElementById('videoFramesInput').value = this.value; updateVideoDurationEst();">
                             </div>
                             
                             <!-- FPS (Frames per second) -->
                             <div class="space-y-2">
                                 <div class="flex justify-between items-center text-xs font-mono">
                                     <span class="text-slate-400">FPS (Frames/sec):</span>
-                                    <span id="videoFpsVal" class="text-indigo-400 font-bold">8</span>
+                                    <input type="number" id="videoFpsInput" min="1" max="120" value="8" class="w-16 bg-[#080B13] border border-slate-800 focus:border-indigo-500 text-indigo-400 font-bold font-mono rounded px-1.5 py-0.5 text-right text-xs outline-none" oninput="document.getElementById('videoFpsSlider').value = this.value; updateVideoDurationEst();">
                                 </div>
-                                <input type="range" id="videoFpsInput" min="4" max="20" value="8" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500" oninput="document.getElementById('videoFpsVal').innerText = this.value; updateVideoDurationEst();">
+                                <input type="range" id="videoFpsSlider" min="4" max="60" value="8" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500" oninput="document.getElementById('videoFpsInput').value = this.value; updateVideoDurationEst();">
                             </div>
 
                             <!-- Duration Estimation Info -->
