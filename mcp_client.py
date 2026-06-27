@@ -185,7 +185,7 @@ class SseMcpClient:
             try:
                 # Fail-fast on GET within 3s to allow quick POST fallback if server hangs on GET
                 response = requests.get(self.url, headers=headers, stream=True, timeout=3)
-                if response.status_code in [400, 405]:
+                if response.status_code != 200:
                     print(f"[SSE Client] GET returned status {response.status_code}, falling back to POST...")
                     response = requests.post(self.url, headers=headers, stream=True, timeout=20)
             except Exception as get_err:
