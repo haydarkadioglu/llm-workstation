@@ -1402,6 +1402,8 @@ let chatHistory = [];
             
             if (imageGalleryList.length === 0) {
                 emptyState.classList.remove("hidden");
+                container.innerHTML = "";
+                container.appendChild(emptyState);
                 return;
             }
             
@@ -1427,6 +1429,9 @@ let chatHistory = [];
                 
                 wrapper.innerHTML = `
                     <img class="w-full h-28 object-cover opacity-80 group-hover:opacity-100 transition" src="${item.src}">
+                    <button onclick="deleteFromImageGallery(${index}, event)" class="absolute top-2 right-2 w-6 h-6 rounded-lg bg-red-950/80 border border-red-800/40 text-red-400 hover:text-red-300 flex items-center justify-center opacity-0 group-hover:opacity-100 transition duration-150 z-10" title="Delete from gallery">
+                        <i class="fa-regular fa-trash-can text-[10px]"></i>
+                    </button>
                     <div class="absolute inset-0 bg-gradient-to-t from-[#0d1322] via-transparent to-transparent opacity-0 group-hover:opacity-100 transition p-2 flex items-end">
                         <span class="text-[9px] font-mono text-slate-300 truncate w-full" title="${item.prompt}">${item.prompt}</span>
                     </div>
@@ -1434,4 +1439,28 @@ let chatHistory = [];
                 
                 container.appendChild(wrapper);
             });
+        }
+
+        function deleteFromImageGallery(index, event) {
+            if (event) event.stopPropagation(); // Prevent loading image on click
+            
+            const item = imageGalleryList[index];
+            if (!item) return;
+            
+            // Remove from list
+            imageGalleryList.splice(index, 1);
+            
+            // Re-render gallery
+            renderImageGallery();
+            
+            // Reset preview frame if this image was currently active
+            const generatedImg = document.getElementById("generatedImage");
+            if (generatedImg && generatedImg.src === item.src) {
+                generatedImg.src = "";
+                generatedImg.classList.add("hidden");
+                document.getElementById("imagePlaceholder").classList.remove("hidden");
+                document.getElementById("imageActions").classList.add("hidden");
+            }
+            
+            showToast("Image removed from gallery.", "info");
         }
