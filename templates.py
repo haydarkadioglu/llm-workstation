@@ -5,15 +5,20 @@ UI_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ui")
 def load_ui_template() -> str:
     html_path = os.path.join(UI_DIR, "index.html")
     css_path = os.path.join(UI_DIR, "styles.css")
-    js_path = os.path.join(UI_DIR, "app.js")
+    js_files = ["core.js", "chat.js", "image.js", "video.js"]
     
     try:
         with open(html_path, "r", encoding="utf-8") as f:
             html = f.read()
         with open(css_path, "r", encoding="utf-8") as f:
             css = f.read()
-        with open(js_path, "r", encoding="utf-8") as f:
-            js = f.read()
+            
+        js_contents = []
+        for js_file in js_files:
+            js_path = os.path.join(UI_DIR, js_file)
+            with open(js_path, "r", encoding="utf-8") as f:
+                js_contents.append(f.read())
+        js = "\n\n".join(js_contents)
             
         # Merge assets
         html = html.replace("/* INJECT_CSS */", css)
