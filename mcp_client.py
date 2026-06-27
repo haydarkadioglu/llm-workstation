@@ -154,7 +154,7 @@ class SseMcpClient:
         self.thread.start()
         
         # Wait for SSE session endpoint setup
-        timeout = 10
+        timeout = 25
         start = time.time()
         while not self.session_url:
             if time.time() - start > timeout:
@@ -183,13 +183,14 @@ class SseMcpClient:
         try:
             headers = {'User-Agent': 'Mozilla/5.0'}
             try:
-                response = requests.get(self.url, headers=headers, stream=True, timeout=30)
+                # Fail-fast on GET within 3s to allow quick POST fallback if server hangs on GET
+                response = requests.get(self.url, headers=headers, stream=True, timeout=3)
                 if response.status_code in [400, 405]:
                     print(f"[SSE Client] GET returned status {response.status_code}, falling back to POST...")
-                    response = requests.post(self.url, headers=headers, stream=True, timeout=30)
+                    response = requests.post(self.url, headers=headers, stream=True, timeout=20)
             except Exception as get_err:
-                print(f"[SSE Client Warning] GET request failed: {get_err}. Trying POST fallback...")
-                response = requests.post(self.url, headers=headers, stream=True, timeout=30)
+                print(f"[SSE Client Warning] GET request failed/timed out: {get_err}. Trying POST fallback...")
+                response = requests.post(self.url, headers=headers, stream=True, timeout=20)
             
             current_event = None
             for line in response.iter_lines():
