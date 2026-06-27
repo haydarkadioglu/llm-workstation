@@ -585,19 +585,75 @@ let chatHistory = [];
             }
         }
 
-        // Render message content with reasoning/thought block detection
+        // Render message content with reasoning/thought block detection & tool styling
         function renderContent(content) {
-            let thinkingHtml = "";
-            let responseHtml = "";
+            let processed = content;
             
-            const thinkStart = content.indexOf("<think>");
-            if (thinkStart !== -1) {
-                const thinkEnd = content.indexOf("</think>", thinkStart);
-                if (thinkEnd !== -1) {
-                    const thinkingText = content.substring(thinkStart + 7, thinkEnd).trim();
-                    const responseText = content.substring(thinkEnd + 8).trim();
-                    
-                    thinkingHtml = `
+            // Format active tool call blocks (⚙️ [Calling Tool...]) and results (📊 [Tool Result...])
+            processed = processed.replace(/⚙️ \*\*\[Calling Tool: `([^`]+)` with arguments ([^\]]+)\]\*\*/g, function(match, name, args) {
+                return `
+                <div class="my-3.5 bg-[#090d16] border border-indigo-500/20 rounded-xl p-3 shadow-md">
+                    <div class="flex items-center gap-2 text-xs font-semibold text-indigo-400 font-mono">
+                        <i class="fa-solid fa-gear animate-spin text-[11px]"></i>
+                        <span>CALLING TOOL: ${name}</span>
+                    </div>
+                    <pre class="mt-2 text-[10px] text-indigo-300 font-mono whitespace-pre-wrap bg-slate-950/40 p-2.5 rounded-lg border border-slate-800/40 overflow-x-auto">${args}</pre>
+                </div>`;
+            });
+            
+            processed = processed.replace(/📊 \*\*\[Tool Result: `([\s\S]*?)`\]\*\*/g, function(match, result) {
+                // Try parsing result to format it nicely if it's JSON
+                let displayResult = result;
+                try {
+                    const parsed = JSON.parse(result);
+                    displayResult = JSON.stringify(parsed, null, 2);
+                } catch(e) {}
+                
+                return `
+                <div class="my-3.5 bg-[#070b12] border border-emerald-500/20 rounded-xl p-3 shadow-md">
+                    <details class="group" open>
+                        <summary class="cursor-pointer flex items-center justify-between text-xs font-semibold text-emerald-400 font-mono select-none">
+                            <span class="flex items-center gap-2">
+                                <i class="fa-solid fa-database text-[11px]"></i>
+                                <span>TOOL EXECUTION SUCCESSFUL</span>
+                            </span>
+                            <i class="fa-solid fa-chevron-down text-[9px] text-slate-500 group-open:rotate-180 transition-transform duration-200"></i>
+                        </summary>
+                        <div class="mt-2.5 border-t border-slate-800/40 pt-2">
+                            <pre class="text-[10px] text-slate-300 font-mono whitespace-pre-wrap bg-slate-950/40 p-2.5 rounded-lg border border-slate-800/40 overflow-x-auto max-h-52 overflow-y-auto">${displayResult}</pre>
+                        </div>
+                    </details>
+                </div>`;
+            });
+
+            processed = processed.replace(/❌ \*\*\[Tool Execution Failed: ([^\]]+)\]\*\*/g, function(match, err) {
+                return `
+                <div class="my-3.5 bg-red-950/20 border border-red-500/20 rounded-xl p-3 shadow-md">
+                    <div class="flex items-center gap-2 text-xs font-semibold text-red-400 font-mono">
+                        <i class="fa-solid fa-triangle-exclamation text-[11px]"></i>
+                        <span>TOOL EXECUTION FAILED</span>
+                    </div>
+                    <p class="mt-2 text-[10px] text-red-300 font-mono bg-slate-950/30 p-2 rounded border border-red-950">${err}</p>
+                </div>`;
+            });
+
+            // Parse reasoning <think> ... </think> blocks (supports multiple tags)
+            let resultHtml = "";
+            let lastIndex = 0;
+            const thinkRegex = /<think>([\s\S]*?)(<\/think>|$)/g;
+            let match;
+            
+            while ((match = thinkRegex.exec(processed)) !== null) {
+                // Add conversational text before the think block
+                if (match.index > lastIndex) {
+                    resultHtml += parseMarkdown(processed.substring(lastIndex, match.index));
+                }
+                
+                const thinkingText = match[1].trim();
+                const isClosed = match[2] === "</think>";
+                
+                if (isClosed) {
+                    resultHtml += `
                         <details class="group mb-3 bg-[#0c101b]/60 border border-slate-800/80 rounded-xl overflow-hidden shadow-md">
                             <summary class="cursor-pointer px-4 py-2 text-xs font-semibold text-slate-400 bg-[#131929]/50 hover:bg-[#1a2136]/50 transition flex items-center justify-between select-none">
                                 <span class="flex items-center gap-1.5 font-mono"><i class="fa-solid fa-brain text-indigo-400"></i> Thinking Process</span>
@@ -606,10 +662,9 @@ let chatHistory = [];
                             <div class="p-4 text-[11px] leading-relaxed text-slate-400 border-t border-slate-800/40 font-mono whitespace-pre-wrap bg-[#080B13]/30">${parseMarkdown(thinkingText)}</div>
                         </details>
                     `;
-                    responseHtml = parseMarkdown(responseText);
                 } else {
-                    const thinkingText = content.substring(thinkStart + 7);
-                    thinkingHtml = `
+                    // Still active thinking
+                    resultHtml += `
                         <details class="group mb-3 bg-[#0c101b]/60 border border-indigo-500/20 rounded-xl overflow-hidden shadow-md" open>
                             <summary class="cursor-pointer px-4 py-2 text-xs font-semibold text-slate-300 bg-[#131929]/50 hover:bg-[#1a2136]/50 transition flex items-center justify-between select-none">
                                 <span class="flex items-center gap-1.5 font-mono"><i class="fa-solid fa-brain text-indigo-400 animate-pulse"></i> Thinking...</span>
@@ -618,50 +673,22 @@ let chatHistory = [];
                             <div class="p-4 text-[11px] leading-relaxed text-slate-400 border-t border-slate-800/40 font-mono whitespace-pre-wrap bg-[#080B13]/30">${parseMarkdown(thinkingText)}</div>
                         </details>
                     `;
-                    responseHtml = `<span class="inline-block w-1.5 h-4 bg-slate-400 animate-pulse"></span>`;
-                }
-                return thinkingHtml + responseHtml;
-            }
-            
-            // Fallback for "Thinking Process:" prefix (or "Thought:")
-            const thinkProcessStart = content.indexOf("Thinking Process:");
-            if (thinkProcessStart !== -1) {
-                const responseMarkers = [
-                    "\nResponse:", "\nAnswer:", "\nActual Response:", 
-                    "\nOutput:", "\nHere is the response:", "\nMerhaba", "\nSelam"
-                ];
-                let responseIndex = -1;
-                let matchedMarker = "";
-                for (const marker of responseMarkers) {
-                    const idx = content.indexOf(marker, thinkProcessStart + 17);
-                    if (idx !== -1 && (responseIndex === -1 || idx < responseIndex)) {
-                        responseIndex = idx;
-                        matchedMarker = marker;
-                    }
                 }
                 
-                if (responseIndex !== -1) {
-                    const thinkingText = content.substring(thinkProcessStart + 17, responseIndex).trim();
-                    let responseText = content.substring(responseIndex).trim();
-                    if (matchedMarker.startsWith("\nResponse:") || matchedMarker.startsWith("\nAnswer:") || matchedMarker.startsWith("\nActual Response:")) {
-                        responseText = content.substring(responseIndex + matchedMarker.length).trim();
-                    }
-                    
-                    thinkingHtml = `
-                        <details class="group mb-3 bg-[#0c101b]/60 border border-slate-800/80 rounded-xl overflow-hidden shadow-md">
-                            <summary class="cursor-pointer px-4 py-2 text-xs font-semibold text-slate-400 bg-[#131929]/50 hover:bg-[#1a2136]/50 transition flex items-center justify-between select-none">
-                                <span class="flex items-center gap-1.5 font-mono"><i class="fa-solid fa-brain text-indigo-400"></i> Thinking Process</span>
-                                <i class="fa-solid fa-chevron-down text-[9px] text-slate-500 group-open:rotate-180 transition-transform duration-200"></i>
-                            </summary>
-                            <div class="p-4 text-[11px] leading-relaxed text-slate-400 border-t border-slate-800/40 font-mono whitespace-pre-wrap bg-[#080B13]/30">${parseMarkdown(thinkingText)}</div>
-                        </details>
-                    `;
-                    responseHtml = parseMarkdown(responseText);
-                    return thinkingHtml + responseHtml;
-                }
+                lastIndex = thinkRegex.lastIndex;
             }
             
-            return parseMarkdown(content);
+            // Add remaining content
+            if (lastIndex < processed.length) {
+                resultHtml += parseMarkdown(processed.substring(lastIndex));
+            }
+            
+            // If active thinking block has no closing tag and we are generating, add cursor placeholder to end
+            if (content.includes("<think>") && !content.includes("</think>") && isGenerating) {
+                resultHtml += `<span class="inline-block w-1.5 h-4 bg-slate-400 animate-pulse"></span>`;
+            }
+            
+            return resultHtml;
         }
 
         // Simple HTML Markdown parser
