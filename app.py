@@ -143,6 +143,28 @@ def generate_image_endpoint(payload: ImageGeneratePayload):
     except Exception as err:
         raise HTTPException(status_code=500, detail=str(err))
 
+class VideoGeneratePayload(BaseModel):
+    prompt: str
+    negative_prompt: Optional[str] = ""
+    steps: Optional[int] = 20
+    frames: Optional[int] = 16
+
+@app.post("/api/video/generate")
+def generate_video_endpoint(payload: VideoGeneratePayload):
+    if not model_manager.image_pipeline:
+        raise HTTPException(status_code=400, detail="No video pipeline is loaded. Please load a video model first.")
+    
+    try:
+        base64_gif = model_manager.generate_video(
+            prompt=payload.prompt,
+            negative_prompt=payload.negative_prompt,
+            steps=payload.steps,
+            frames=payload.frames
+        )
+        return {"video_base64": f"data:image/gif;base64,{base64_gif}"}
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=str(err))
+
 @app.post("/api/chat")
 async def chat_endpoint(payload: ChatPayload):
     formatted_messages = []

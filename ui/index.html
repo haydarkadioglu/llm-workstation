@@ -51,6 +51,9 @@
                 <a href="#image" id="imageTab" class="px-3.5 py-1.5 rounded-lg text-sm font-medium transition duration-200">
                     <i class="fa-regular fa-image mr-1.5"></i>Image Models
                 </a>
+                <a href="#video" id="videoTab" class="px-3.5 py-1.5 rounded-lg text-sm font-medium transition duration-200">
+                    <i class="fa-solid fa-video mr-1.5"></i>Video Models
+                </a>
                 <a href="#dashboard" id="dashboardTab" class="px-3.5 py-1.5 rounded-lg text-sm font-medium transition duration-200">
                     <i class="fa-solid fa-chart-line mr-1.5"></i>Dashboard
                 </a>
@@ -597,6 +600,200 @@
                 </div>
             </div>
         </div>
+
+            <!-- PAGE 1C: VIDEO MODELS VIEW -->
+            <div id="videoView" class="hidden flex-1 flex h-full overflow-hidden">
+                <!-- Left Sidebar for Video Model Control & Params -->
+                <aside class="w-80 border-r border-slate-800 bg-[#0c101d] flex flex-col shrink-0 font-sans">
+                    <div class="p-5 border-b border-slate-800 space-y-1">
+                        <h3 class="text-sm font-semibold tracking-wide text-slate-200">VIDEO MODEL MANAGER</h3>
+                        <p class="text-[10px] text-slate-400">Load and configure Text-to-Video models.</p>
+                    </div>
+                    <div class="flex-1 overflow-y-auto p-5 space-y-6">
+                        <!-- GPU & VRAM Monitoring (Video Mode) -->
+                        <div class="bg-[#131929]/30 border border-slate-800/80 rounded-xl p-3.5 space-y-2 text-xs font-mono">
+                            <div class="flex justify-between items-center text-[10px] font-bold tracking-wider text-slate-400 font-mono uppercase">
+                                <span>GPU VRAM Usage</span>
+                                <span id="videoVramPct" class="text-indigo-400 font-bold">0%</span>
+                            </div>
+                            <div class="w-full bg-slate-800 rounded-full h-1">
+                                <div id="videoVramProgressBar" class="bg-indigo-500 h-1 rounded-full transition-all duration-500" style="width: 0%"></div>
+                            </div>
+                            <div class="flex justify-between text-slate-400 text-[10px] pt-1">
+                                <span>Used/Total:</span>
+                                <span id="videoVramUsedTotal" class="text-slate-300">0 / 0 MB</span>
+                            </div>
+                            <div class="flex justify-between text-slate-400 text-[10px]">
+                                <span>Disk Space:</span>
+                                <span id="videoDiskUsedTotal" class="text-slate-300">0 / 0 GB</span>
+                            </div>
+                        </div>
+
+                        <!-- Video Model Download Progress Card -->
+                        <div id="videoDownloadProgressCard" class="hidden bg-[#131929]/50 border border-indigo-500/20 rounded-xl p-3.5 space-y-2.5">
+                            <div class="flex justify-between items-center text-xs">
+                                <span id="videoDownloadStatusText" class="font-medium text-slate-300 truncate max-w-[170px]">Downloading...</span>
+                                <span id="videoDownloadPctText" class="text-indigo-400 font-mono font-bold">0%</span>
+                            </div>
+                            <div class="w-full bg-slate-800 rounded-full h-1.5">
+                                <div id="videoDownloadProgressBar" class="bg-indigo-500 h-1.5 rounded-full transition-all duration-500" style="width: 0%"></div>
+                            </div>
+                        </div>
+
+                        <!-- Video Model Load Error Alert Card -->
+                        <div id="videoModelLoadErrorCard" class="hidden bg-red-950/20 border border-red-900/40 rounded-xl p-3.5 space-y-1.5">
+                            <div class="flex justify-between items-center text-[10px] text-red-400 font-bold uppercase tracking-wider">
+                                <span><i class="fa-solid fa-triangle-exclamation mr-1.5"></i>Load Failed</span>
+                                <button onclick="document.getElementById('videoModelLoadErrorCard').classList.add('hidden')" class="hover:text-red-300 transition text-[11px] px-1">
+                                    <i class="fa-solid fa-xmark"></i>
+                                </button>
+                            </div>
+                            <div class="max-h-[100px] overflow-y-auto pr-1">
+                                <p id="videoModelLoadErrorText" class="text-[10px] text-red-350 leading-relaxed font-mono whitespace-pre-wrap break-all"></p>
+                            </div>
+                        </div>
+
+                        <!-- Model Loader Form -->
+                        <div class="space-y-3.5">
+                            <label class="text-[11px] font-bold text-slate-400 tracking-wider block font-mono">HUGGING FACE ID:</label>
+                            <input type="text" id="videoModelInput" placeholder="e.g. damo-vilab/text-to-video-ms-1.7b" class="w-full bg-[#131929]/50 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 font-mono transition">
+                            
+                            <label class="text-[11px] font-bold text-slate-400 tracking-wider block font-mono font-bold">HF TOKEN (OPTIONAL):</label>
+                            <input type="password" id="videoModelToken" placeholder="gated access token" class="w-full bg-[#131929]/50 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 font-mono transition">
+                            
+                            <div class="grid grid-cols-2 gap-2">
+                                <button onclick="triggerVideoModelLoad()" id="videoLoadBtn" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold py-2 px-3 rounded-xl transition flex items-center justify-center gap-1.5 shadow-md shadow-indigo-600/10 active:scale-[0.98] transition">
+                                    <i class="fa-solid fa-play"></i> Load Model
+                                </button>
+                                <button onclick="unloadModel()" id="videoUnloadBtn" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold py-2 px-3 rounded-xl transition flex items-center justify-center gap-1.5 border border-slate-700/50 active:scale-[0.98] transition">
+                                    <i class="fa-solid fa-trash-can"></i> Unload
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Presets -->
+                        <div class="space-y-3">
+                            <h4 class="text-[10px] font-bold tracking-wider text-slate-400 font-mono uppercase">Quick Presets</h4>
+                            <div class="grid grid-cols-1 gap-2">
+                                <button onclick="selectVideoPreset('damo-vilab/text-to-video-ms-1.7b')" class="p-2 text-left bg-[#131929]/30 border border-slate-800 rounded-xl text-xs hover:border-slate-700 transition">
+                                    <p class="font-mono text-slate-300">ModelScope T2V (1.7B)</p>
+                                    <span class="text-[9px] text-slate-500 font-mono">damo-vilab/text-to-video-ms-1.7b</span>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Parameters -->
+                        <div class="space-y-4 pt-4 border-t border-slate-800/60">
+                            <h4 class="text-[10px] font-bold tracking-wider text-slate-400 font-mono uppercase">Generation Params</h4>
+                            
+                            <!-- Steps -->
+                            <div class="space-y-2">
+                                <div class="flex justify-between items-center text-xs font-mono">
+                                    <span class="text-slate-400">Steps:</span>
+                                    <span id="videoStepsVal" class="text-indigo-400 font-bold">20</span>
+                                </div>
+                                <input type="range" id="videoStepsInput" min="5" max="50" value="20" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500" oninput="document.getElementById('videoStepsVal').innerText = this.value">
+                            </div>
+                            
+                            <!-- Frame Count -->
+                            <div class="space-y-2">
+                                <div class="flex justify-between items-center text-xs font-mono">
+                                    <span class="text-slate-400">Frames:</span>
+                                    <span id="videoFramesVal" class="text-indigo-400 font-bold">16</span>
+                                </div>
+                                <input type="range" id="videoFramesInput" min="8" max="24" step="8" value="16" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500" oninput="document.getElementById('videoFramesVal').innerText = this.value">
+                            </div>
+                        </div>
+
+                        <!-- Cached Models List (Video Mode) -->
+                        <div class="pt-3 border-t border-slate-800/60 mt-3.5 font-sans">
+                            <label class="text-[10px] font-semibold text-slate-500 tracking-wider uppercase block mb-2 flex justify-between items-center font-mono">
+                                <span>Cached Models</span>
+                                <button onclick="fetchCachedModels()" class="text-indigo-400 hover:text-indigo-300 transition" title="Refresh list">
+                                    <i class="fa-solid fa-rotate-right text-[9px]"></i>
+                                </button>
+                            </label>
+                            <div id="cachedVideoModelsList" class="space-y-2 max-h-[160px] overflow-y-auto pr-1">
+                                <span class="text-[10px] text-slate-500 italic block py-1">Scanning cache...</span>
+                            </div>
+                        </div>
+                    </div>
+                </aside>
+                
+                <!-- Main Playground -->
+                <div class="flex-1 flex flex-col h-full bg-[#0B0F19] overflow-hidden">
+                    <!-- Model Header info for Video View -->
+                    <div class="px-6 py-3 bg-[#0D1220]/40 border-b border-slate-800/50 flex justify-between items-center shrink-0">
+                        <div class="flex items-center gap-2.5">
+                            <span class="relative flex h-2 w-2">
+                                <span id="videoModelIndicatorPulse" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
+                                <span id="videoModelIndicator" class="relative inline-flex rounded-full h-2 w-2 bg-yellow-500"></span>
+                            </span>
+                            <span id="activeVideoModelLabel" class="text-xs font-mono text-slate-300 font-medium">No video model loaded</span>
+                            <span class="text-[10px] font-bold tracking-wide uppercase px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">Video / T2V</span>
+                        </div>
+                    </div>
+                    
+                    <div class="flex-1 overflow-y-auto p-6 space-y-6">
+                        <!-- Top controls / Prompt panel -->
+                        <div class="bg-[#0D1322]/60 border border-slate-800/80 rounded-2xl p-5 space-y-4">
+                            <div class="space-y-2">
+                                <label class="text-[10px] font-bold tracking-wider text-slate-400 font-mono uppercase block">Prompt (What you want to see in motion)</label>
+                                <textarea id="videoPrompt" rows="3" placeholder="A majestic waterfall cascading down a glowing crystal cave, slow motion, detailed 3D render..." class="w-full bg-[#131929]/40 border border-slate-800/80 rounded-xl px-4 py-3 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition resize-none"></textarea>
+                            </div>
+                            
+                            <div class="space-y-2">
+                                <label class="text-[10px] font-bold tracking-wider text-slate-400 font-mono uppercase block">Negative Prompt (What to exclude)</label>
+                                <input type="text" id="videoNegativePrompt" placeholder="blurry, low quality, distorted, static, ugly" class="w-full bg-[#131929]/40 border border-slate-800/80 rounded-xl px-4 py-3 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition">
+                            </div>
+                            
+                            <div class="flex justify-end">
+                                <button onclick="generateVideo()" id="btnGenerateVideo" class="px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-500 text-white text-xs font-semibold tracking-wide flex items-center gap-2 shadow-lg shadow-indigo-600/20 active:scale-[0.98] transition font-sans">
+                                    <i class="fa-solid fa-video"></i>Generate Video
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Output Preview Frame and Gallery -->
+                        <div class="flex flex-col md:flex-row gap-6">
+                            <!-- Left: Active Preview -->
+                            <div class="flex-1 bg-[#0d1322]/40 border border-slate-800/60 rounded-2xl p-6 min-h-[300px] flex flex-col items-center justify-center relative overflow-hidden">
+                                <!-- Loader Overlay -->
+                                <div id="videoGeneratorLoader" class="hidden absolute inset-0 bg-[#070A13]/80 flex flex-col items-center justify-center gap-4 z-20 backdrop-blur-sm">
+                                    <div class="w-10 h-10 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin"></div>
+                                    <div class="text-center font-sans">
+                                        <p class="text-xs font-bold text-slate-200">Rendering Video frames...</p>
+                                        <p class="text-[10px] text-indigo-400 font-mono mt-1">This may take 1-2 minutes depending on your GPU VRAM.</p>
+                                    </div>
+                                </div>
+                                
+                                <!-- Result Video Gif -->
+                                <div id="videoPlaceholder" class="text-center space-y-3 font-sans">
+                                    <i class="fa-solid fa-clapperboard text-5xl text-slate-600"></i>
+                                    <p class="text-xs text-slate-500">Your generated video loops will appear here.</p>
+                                </div>
+                                <img id="generatedVideoGif" class="hidden max-h-[450px] max-w-full rounded-xl shadow-2xl border border-slate-800/80 object-contain" src="">
+                                
+                                <!-- Action button overlay -->
+                                <div id="videoActions" class="hidden mt-4 flex items-center gap-3 font-sans">
+                                    <a id="btnDownloadVideo" href="#" download="generated-video.gif" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition">
+                                        <i class="fa-solid fa-download"></i>Download GIF
+                                    </a>
+                                </div>
+                            </div>
+                            
+                            <!-- Right: History Panel -->
+                            <div class="w-full md:w-80 bg-[#0d1322]/20 border border-slate-800/40 rounded-2xl p-5 flex flex-col min-h-[250px] font-sans">
+                                <h4 class="text-xs font-bold tracking-wider text-slate-400 font-mono uppercase mb-4">Session Gallery</h4>
+                                <div id="videoHistory" class="flex-1 grid grid-cols-2 md:grid-cols-1 gap-3 overflow-y-auto max-h-[400px] pr-1">
+                                    <!-- Empty state -->
+                                    <p id="videoGalleryEmptyState" class="text-[10px] text-slate-500 italic block py-2 text-center col-span-2 md:col-span-1">No videos generated yet.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
             
             <!-- PAGE 2: DASHBOARD VIEW -->
             <div id="dashboardView" class="hidden flex-1 p-6 overflow-y-auto space-y-6">

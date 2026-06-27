@@ -1,5 +1,6 @@
 let chatHistory = [];
         let imageGalleryList = [];
+        let videoGalleryList = [];
         let pollingInterval = null;
         let activeGenerationController = null;
         let isGenerating = false;
@@ -228,7 +229,7 @@ let chatHistory = [];
         // Hash Routing Logic
         function routePage() {
             const hash = window.location.hash || "#chat";
-            const tabs = ["chat", "image", "dashboard", "mcp", "settings"];
+            const tabs = ["chat", "image", "video", "dashboard", "mcp", "settings"];
             
             tabs.forEach(tab => {
                 const view = document.getElementById(`${tab}View`);
@@ -499,6 +500,31 @@ let chatHistory = [];
                     }
                 }
 
+                // Sync Video Models Header status
+                const vidModelLabel = document.getElementById("activeVideoModelLabel");
+                const vidIndicator = document.getElementById("videoModelIndicator");
+                const vidPulse = document.getElementById("videoModelIndicatorPulse");
+                
+                if (vidModelLabel && vidIndicator && vidPulse) {
+                    if (data.model_status === "Ready") {
+                        vidModelLabel.innerText = data.current_model || "No model loaded";
+                        vidIndicator.className = "relative inline-flex rounded-full h-2 w-2 bg-emerald-500";
+                        vidPulse.className = "animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75";
+                    } else if (data.model_status.startsWith("Downloading") || data.model_status.startsWith("Loading") || data.model_status.startsWith("Preparing")) {
+                        vidModelLabel.innerText = data.model_status;
+                        vidIndicator.className = "relative inline-flex rounded-full h-2 w-2 bg-yellow-500";
+                        vidPulse.className = "animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75";
+                    } else if (data.model_status === "Error loading model") {
+                        vidModelLabel.innerText = "Error Loading Last Model";
+                        vidIndicator.className = "relative inline-flex rounded-full h-2 w-2 bg-red-500";
+                        vidPulse.className = "";
+                    } else {
+                        vidModelLabel.innerText = "No model loaded";
+                        vidIndicator.className = "relative inline-flex rounded-full h-2 w-2 bg-slate-500";
+                        vidPulse.className = "";
+                    }
+                }
+
                 // Token speed update
                 document.getElementById("tokenSpeed").innerText = `${data.tokens_per_sec.toFixed(1)} tokens/s`;
                 document.getElementById("dashSpeed").innerText = `${data.tokens_per_sec.toFixed(1)} tokens/s`;
@@ -548,6 +574,10 @@ let chatHistory = [];
                     if (imgDiskText) {
                         imgDiskText.innerText = `${data.system.disk.used_gb} / ${data.system.disk.total_gb} GB`;
                     }
+                    const vidDiskText = document.getElementById("videoDiskUsedTotal");
+                    if (vidDiskText) {
+                        vidDiskText.innerText = `${data.system.disk.used_gb} / ${data.system.disk.total_gb} GB`;
+                    }
                 }
 
                 // Update VRAM telemetry inside Image Model Manager sidebar
@@ -561,6 +591,20 @@ let chatHistory = [];
                         imgVramText.innerText = `${usedVramVal.toFixed(0)} / ${totalVramVal.toFixed(0)} MB`;
                     } else {
                         imgVramText.innerText = `${data.system.ram_used_gb.toFixed(1)} / ${data.system.ram_total_gb.toFixed(1)} GB`;
+                    }
+                }
+
+                // Update VRAM telemetry inside Video Model Manager sidebar
+                const vidVramPct = document.getElementById("videoVramPct");
+                const vidVramBar = document.getElementById("videoVramProgressBar");
+                const vidVramText = document.getElementById("videoVramUsedTotal");
+                if (vidVramPct && vidVramBar && vidVramText) {
+                    vidVramPct.innerText = `${pct.toFixed(0)}%`;
+                    vidVramBar.style.width = `${pct}%`;
+                    if (data.system.gpu_available && data.system.gpus.length > 0) {
+                        vidVramText.innerText = `${usedVramVal.toFixed(0)} / ${totalVramVal.toFixed(0)} MB`;
+                    } else {
+                        vidVramText.innerText = `${data.system.ram_used_gb.toFixed(1)} / ${data.system.ram_total_gb.toFixed(1)} GB`;
                     }
                 }
 
@@ -593,6 +637,38 @@ let chatHistory = [];
                 } else {
                     if (imgErrCard && data.model_status === "Ready") {
                         imgErrCard.classList.add("hidden");
+                    }
+                }
+
+                // Update Video Model Load Progress and Error alerts
+                const vidProgCard = document.getElementById("videoDownloadProgressCard");
+                const vidErrCard = document.getElementById("videoModelLoadErrorCard");
+                const vidErrText = document.getElementById("videoModelLoadErrorText");
+                
+                if (data.model_status.startsWith("Downloading") || data.model_status.startsWith("Loading") || data.model_status.startsWith("Preparing")) {
+                    if (vidProgCard) {
+                        vidProgCard.classList.remove("hidden");
+                        const progressVal = data.loading_progress || 0;
+                        document.getElementById("videoDownloadPctText").innerText = `${progressVal}%`;
+                        document.getElementById("videoDownloadProgressBar").style.width = `${progressVal}%`;
+                        
+                        if (data.model_status.startsWith("Loading") && !data.loading_speed) {
+                            document.getElementById("videoDownloadStatusText").innerText = "loading VRAM shards...";
+                        } else {
+                            document.getElementById("videoDownloadStatusText").innerText = data.loading_speed || data.model_status;
+                        }
+                    }
+                    if (vidErrCard) vidErrCard.classList.add("hidden");
+                } else {
+                    if (vidProgCard) vidProgCard.classList.add("hidden");
+                }
+                
+                if (data.model_status === "Error loading model") {
+                    if (vidErrText) vidErrText.innerText = data.error_message || "Unknown error occurred.";
+                    if (vidErrCard) vidErrCard.classList.remove("hidden");
+                } else {
+                    if (vidErrCard && data.model_status === "Ready") {
+                        vidErrCard.classList.add("hidden");
                     }
                 }
 
@@ -1463,4 +1539,181 @@ let chatHistory = [];
             }
             
             showToast("Image removed from gallery.", "info");
+        }
+
+        // Video Models Functions
+        function selectVideoPreset(modelId) {
+            document.getElementById("videoModelInput").value = modelId;
+        }
+
+        async function triggerVideoModelLoad() {
+            const modelId = document.getElementById("videoModelInput").value.trim();
+            const hfToken = document.getElementById("videoModelToken").value.trim();
+            
+            if (!modelId) {
+                showToast("Please enter a Hugging Face model ID.", "error");
+                return;
+            }
+            
+            appendLog(`Initiating load sequence for video model '${modelId}'...`);
+            document.getElementById("videoModelLoadErrorCard").classList.add("hidden");
+            
+            try {
+                const response = await fetch("/api/model/load", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        model_id: modelId,
+                        hf_token: hfToken || null,
+                        model_type: "video"
+                    })
+                });
+                
+                if (response.ok) {
+                    showToast("Video model load sequence started.", "info");
+                } else {
+                    const data = await response.json();
+                    throw new Error(data.detail);
+                }
+            } catch (err) {
+                appendLog(`Failed to start load sequence: ${err.message}`, true);
+                showToast(`Load failed: ${err.message}`, "error");
+            }
+        }
+
+        async function generateVideo() {
+            const prompt = document.getElementById("videoPrompt").value.trim();
+            const negativePrompt = document.getElementById("videoNegativePrompt").value.trim();
+            const steps = parseInt(document.getElementById("videoStepsInput").value);
+            const frames = parseInt(document.getElementById("videoFramesInput").value);
+            
+            if (!prompt) {
+                showToast("Please enter a video prompt.", "error");
+                return;
+            }
+            
+            const btnGenerate = document.getElementById("btnGenerateVideo");
+            const loader = document.getElementById("videoGeneratorLoader");
+            const placeholder = document.getElementById("videoPlaceholder");
+            const generatedGif = document.getElementById("generatedVideoGif");
+            const actions = document.getElementById("videoActions");
+            const downloadBtn = document.getElementById("btnDownloadVideo");
+            
+            btnGenerate.disabled = true;
+            btnGenerate.innerHTML = `<div class="w-4 h-4 border-2 border-slate-400 border-t-white rounded-full animate-spin"></div>Generating...`;
+            loader.classList.remove("hidden");
+            
+            try {
+                const response = await fetch("/api/video/generate", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        prompt,
+                        negative_prompt: negativePrompt,
+                        steps,
+                        frames
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    const base64Src = data.video_base64;
+                    
+                    placeholder.classList.add("hidden");
+                    generatedGif.src = base64Src;
+                    generatedGif.classList.remove("hidden");
+                    
+                    actions.classList.remove("hidden");
+                    downloadBtn.href = base64Src;
+                    
+                    addToVideoGallery(base64Src, prompt);
+                    
+                    appendLog("Video generated successfully.");
+                    showToast("Video generated successfully!", "success");
+                } else {
+                    const data = await response.json();
+                    throw new Error(data.detail);
+                }
+            } catch (err) {
+                showToast(`Generation failed: ${err.message}`, "error");
+                appendLog(`Video generation failed: ${err.message}`, true);
+            } finally {
+                loader.classList.add("hidden");
+                btnGenerate.disabled = false;
+                btnGenerate.innerHTML = `<i class="fa-solid fa-video"></i>Generate Video`;
+            }
+        }
+
+        function addToVideoGallery(base64Src, prompt) {
+            videoGalleryList.unshift({ src: base64Src, prompt });
+            renderVideoGallery();
+        }
+
+        function renderVideoGallery() {
+            const container = document.getElementById("videoHistory");
+            const emptyState = document.getElementById("videoGalleryEmptyState");
+            
+            if (videoGalleryList.length === 0) {
+                emptyState.classList.remove("hidden");
+                container.innerHTML = "";
+                container.appendChild(emptyState);
+                return;
+            }
+            
+            emptyState.classList.add("hidden");
+            container.innerHTML = "";
+            container.appendChild(emptyState);
+            
+            videoGalleryList.forEach((item, index) => {
+                const wrapper = document.createElement("div");
+                wrapper.className = "group relative bg-[#131929]/40 border border-slate-800 rounded-xl overflow-hidden cursor-pointer hover:border-slate-600 transition";
+                wrapper.onclick = () => {
+                    document.getElementById("videoPlaceholder").classList.add("hidden");
+                    const generatedGif = document.getElementById("generatedVideoGif");
+                    generatedGif.src = item.src;
+                    generatedGif.classList.remove("hidden");
+                    
+                    const actions = document.getElementById("videoActions");
+                    actions.classList.remove("hidden");
+                    document.getElementById("btnDownloadVideo").href = item.src;
+                    
+                    document.getElementById("videoPrompt").value = item.prompt;
+                };
+                
+                wrapper.innerHTML = `
+                    <img class="w-full h-28 object-cover opacity-80 group-hover:opacity-100 transition" src="${item.src}">
+                    <button onclick="deleteFromVideoGallery(${index}, event)" class="absolute top-2 right-2 w-6 h-6 rounded-lg bg-red-950/80 border border-red-800/40 text-red-400 hover:text-red-300 flex items-center justify-center opacity-0 group-hover:opacity-100 transition duration-150 z-10" title="Delete from gallery">
+                        <i class="fa-regular fa-trash-can text-[10px]"></i>
+                    </button>
+                    <div class="absolute inset-0 bg-gradient-to-t from-[#0d1322] via-transparent to-transparent opacity-0 group-hover:opacity-100 transition p-2 flex items-end">
+                        <span class="text-[9px] font-mono text-slate-300 truncate w-full" title="${item.prompt}">${item.prompt}</span>
+                    </div>
+                `;
+                
+                container.appendChild(wrapper);
+            });
+        }
+
+        function deleteFromVideoGallery(index, event) {
+            if (event) event.stopPropagation(); // Prevent loading video on click
+            
+            const item = videoGalleryList[index];
+            if (!item) return;
+            
+            // Remove from list
+            videoGalleryList.splice(index, 1);
+            
+            // Re-render gallery
+            renderVideoGallery();
+            
+            // Reset preview frame if this video was currently active
+            const generatedGif = document.getElementById("generatedVideoGif");
+            if (generatedGif && generatedGif.src === item.src) {
+                generatedGif.src = "";
+                generatedGif.classList.add("hidden");
+                document.getElementById("videoPlaceholder").classList.remove("hidden");
+                document.getElementById("videoActions").classList.add("hidden");
+            }
+            
+            showToast("Video removed from gallery.", "info");
         }
