@@ -441,9 +441,14 @@
                             <label class="text-[11px] font-bold text-slate-400 tracking-wider block font-mono font-bold">HF TOKEN (OPTIONAL):</label>
                             <input type="password" id="imageModelToken" placeholder="gated access token" class="w-full bg-[#131929]/50 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 font-mono transition">
                             
-                            <button onclick="triggerImageModelLoad()" class="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold tracking-wide flex items-center justify-center gap-1.5 shadow-md shadow-indigo-600/10 active:scale-[0.98] transition">
-                                <i class="fa-solid fa-play"></i>Load Image Model
-                            </button>
+                            <div class="grid grid-cols-2 gap-2">
+                                <button onclick="triggerImageModelLoad()" id="imageLoadBtn" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold py-2 px-3 rounded-xl transition flex items-center justify-center gap-1.5 shadow-md shadow-indigo-600/10 active:scale-[0.98] transition">
+                                    <i class="fa-solid fa-play"></i> Load Model
+                                </button>
+                                <button onclick="unloadModel()" id="imageUnloadBtn" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold py-2 px-3 rounded-xl transition flex items-center justify-center gap-1.5 border border-slate-700/50 active:scale-[0.98] transition">
+                                    <i class="fa-solid fa-trash-can"></i> Unload
+                                </button>
+                            </div>
                         </div>
                         
                         <!-- Presets -->
@@ -505,11 +510,37 @@
                                 </div>
                             </div>
                         </div>
+
+                        <!-- Cached Models List (Image Mode) -->
+                        <div class="pt-3 border-t border-slate-800/60 mt-3.5 font-sans">
+                            <label class="text-[10px] font-semibold text-slate-500 tracking-wider uppercase block mb-2 flex justify-between items-center font-mono">
+                                <span>Cached Models</span>
+                                <button onclick="fetchCachedModels()" class="text-indigo-400 hover:text-indigo-300 transition" title="Refresh list">
+                                    <i class="fa-solid fa-rotate-right text-[9px]"></i>
+                                </button>
+                            </label>
+                            <div id="cachedImageModelsList" class="space-y-2 max-h-[160px] overflow-y-auto pr-1">
+                                <span class="text-[10px] text-slate-500 italic block py-1">Scanning cache...</span>
+                            </div>
+                        </div>
                     </div>
                 </aside>
                 
                 <!-- Main Playground -->
-                <div class="flex-1 flex flex-col h-full bg-[#0B0F19] overflow-y-auto p-6 space-y-6">
+                <div class="flex-1 flex flex-col h-full bg-[#0B0F19] overflow-hidden">
+                    <!-- Model Header info for Image View -->
+                    <div class="px-6 py-3 bg-[#0D1220]/40 border-b border-slate-800/50 flex justify-between items-center shrink-0">
+                        <div class="flex items-center gap-2.5">
+                            <span class="relative flex h-2 w-2">
+                                <span id="imageModelIndicatorPulse" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
+                                <span id="imageModelIndicator" class="relative inline-flex rounded-full h-2 w-2 bg-yellow-500"></span>
+                            </span>
+                            <span id="activeImageModelLabel" class="text-xs font-mono text-slate-300 font-medium">No image model loaded</span>
+                            <span class="text-[10px] font-bold tracking-wide uppercase px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-400 border border-purple-500/30">Diffusion / SD</span>
+                        </div>
+                    </div>
+                    
+                    <div class="flex-1 overflow-y-auto p-6 space-y-6">
                     <!-- Top controls / Prompt panel -->
                     <div class="bg-[#0D1322]/60 border border-slate-800/80 rounded-2xl p-5 space-y-4">
                         <div class="space-y-2">
@@ -565,6 +596,7 @@
                     </div>
                 </div>
             </div>
+        </div>
             
             <!-- PAGE 2: DASHBOARD VIEW -->
             <div id="dashboardView" class="hidden flex-1 p-6 overflow-y-auto space-y-6">

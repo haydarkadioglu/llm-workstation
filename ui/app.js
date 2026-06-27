@@ -474,6 +474,31 @@ let chatHistory = [];
                     document.getElementById("modelLoadErrorCard").classList.add("hidden");
                 }
 
+                // Sync Image Models Header status
+                const imgModelLabel = document.getElementById("activeImageModelLabel");
+                const imgIndicator = document.getElementById("imageModelIndicator");
+                const imgPulse = document.getElementById("imageModelIndicatorPulse");
+                
+                if (imgModelLabel && imgIndicator && imgPulse) {
+                    if (data.model_status === "Ready") {
+                        imgModelLabel.innerText = data.current_model || "No model loaded";
+                        imgIndicator.className = "relative inline-flex rounded-full h-2 w-2 bg-emerald-500";
+                        imgPulse.className = "animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75";
+                    } else if (data.model_status.startsWith("Downloading") || data.model_status.startsWith("Loading") || data.model_status.startsWith("Preparing")) {
+                        imgModelLabel.innerText = data.model_status;
+                        imgIndicator.className = "relative inline-flex rounded-full h-2 w-2 bg-yellow-500";
+                        imgPulse.className = "animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75";
+                    } else if (data.model_status === "Error loading model") {
+                        imgModelLabel.innerText = "Error Loading Last Model";
+                        imgIndicator.className = "relative inline-flex rounded-full h-2 w-2 bg-red-500";
+                        imgPulse.className = "";
+                    } else {
+                        imgModelLabel.innerText = "No model loaded";
+                        imgIndicator.className = "relative inline-flex rounded-full h-2 w-2 bg-slate-500";
+                        imgPulse.className = "";
+                    }
+                }
+
                 // Token speed update
                 document.getElementById("tokenSpeed").innerText = `${data.tokens_per_sec.toFixed(1)} tokens/s`;
                 document.getElementById("dashSpeed").innerText = `${data.tokens_per_sec.toFixed(1)} tokens/s`;
@@ -1162,47 +1187,79 @@ let chatHistory = [];
             }
         }
 
-        // HF Cache Management functions
         async function fetchCachedModels() {
             const listContainer = document.getElementById("cachedModelsList");
+            const imageListContainer = document.getElementById("cachedImageModelsList");
             try {
                 const response = await fetch("/api/models/cached");
                 if (!response.ok) throw new Error("Failed to scan HF cache");
                 const models = await response.json();
                 renderCachedModels(models);
             } catch (err) {
-                listContainer.innerHTML = `<span class="text-[10px] text-red-400 italic">Scan failed: ${err.message}</span>`;
+                if (listContainer) listContainer.innerHTML = `<span class="text-[10px] text-red-400 italic font-sans">Scan failed: ${err.message}</span>`;
+                if (imageListContainer) imageListContainer.innerHTML = `<span class="text-[10px] text-red-400 italic font-sans">Scan failed: ${err.message}</span>`;
             }
         }
 
         function renderCachedModels(models) {
             const container = document.getElementById("cachedModelsList");
-            if (models.length === 0) {
-                container.innerHTML = `<span class="text-[10px] text-slate-500 italic block py-1">No models downloaded.</span>`;
-                return;
+            const imageContainer = document.getElementById("cachedImageModelsList");
+            
+            // Render for LLM Sidebar
+            if (container) {
+                if (models.length === 0) {
+                    container.innerHTML = `<span class="text-[10px] text-slate-500 italic block py-1 font-sans">No models downloaded.</span>`;
+                } else {
+                    container.innerHTML = "";
+                    models.forEach(model => {
+                        const card = document.createElement("div");
+                        card.className = "flex items-center justify-between p-2 bg-[#131929]/40 border border-slate-800 rounded-xl text-[10px] gap-2 hover:border-slate-700 transition";
+                        card.innerHTML = `
+                            <div class="min-w-0 flex-1">
+                                <p class="text-slate-300 font-mono leading-tight truncate" title="${model.repo_id}">${model.repo_id}</p>
+                                <span class="text-slate-500 font-mono text-[9px]">${model.size_gb} GB • ${model.nb_files} files</span>
+                            </div>
+                            <div class="flex items-center gap-1.5 shrink-0 font-sans">
+                                <button onclick="selectPreset('${model.repo_id}'); triggerModelLoad();" class="text-indigo-400 hover:text-indigo-300 transition p-1" title="Load Model">
+                                    <i class="fa-solid fa-play text-[10px]"></i>
+                                </button>
+                                <button onclick="deleteModelFromCache('${model.repo_id}')" class="text-red-400 hover:text-red-300 transition p-1" title="Delete Model">
+                                    <i class="fa-regular fa-trash-can text-[10px]"></i>
+                                </button>
+                            </div>
+                        `;
+                        container.appendChild(card);
+                    });
+                }
             }
-
-            container.innerHTML = "";
-            models.forEach(model => {
-                const card = document.createElement("div");
-                card.className = "flex items-center justify-between p-2 bg-[#131929]/40 border border-slate-800 rounded-xl text-[10px] gap-2 hover:border-slate-700 transition";
-                
-                card.innerHTML = `
-                    <div class="min-w-0 flex-1">
-                        <p class="text-slate-300 font-mono leading-tight truncate" title="${model.repo_id}">${model.repo_id}</p>
-                        <span class="text-slate-500 font-mono text-[9px]">${model.size_gb} GB • ${model.nb_files} files</span>
-                    </div>
-                    <div class="flex items-center gap-1.5 shrink-0">
-                        <button onclick="selectPreset('${model.repo_id}'); triggerModelLoad();" class="text-indigo-400 hover:text-indigo-300 transition p-1" title="Load Model">
-                            <i class="fa-solid fa-play text-[10px]"></i>
-                        </button>
-                        <button onclick="deleteModelFromCache('${model.repo_id}')" class="text-red-400 hover:text-red-300 transition p-1" title="Delete Model">
-                            <i class="fa-regular fa-trash-can text-[10px]"></i>
-                        </button>
-                    </div>
-                `;
-                container.appendChild(card);
-            });
+            
+            // Render for Image Sidebar
+            if (imageContainer) {
+                if (models.length === 0) {
+                    imageContainer.innerHTML = `<span class="text-[10px] text-slate-500 italic block py-1 font-sans">No models downloaded.</span>`;
+                } else {
+                    imageContainer.innerHTML = "";
+                    models.forEach(model => {
+                        const card = document.createElement("div");
+                        card.className = "flex items-center justify-between p-2 bg-[#131929]/40 border border-slate-800 rounded-xl text-[10px] gap-2 hover:border-slate-700 transition";
+                        card.innerHTML = `
+                            <div class="min-w-0 flex-1">
+                                <p class="text-slate-300 font-mono leading-tight truncate" title="${model.repo_id}">${model.repo_id}</p>
+                                <span class="text-slate-500 font-mono text-[9px]">${model.size_gb} GB • ${model.nb_files} files</span>
+                            </div>
+                            <div class="flex items-center gap-1.5 shrink-0 font-sans">
+                                <button onclick="selectImagePreset('${model.repo_id}'); triggerImageModelLoad();" class="text-indigo-400 hover:text-indigo-300 transition p-1" title="Load Model">
+                                    <i class="fa-solid fa-play text-[10px]"></i>
+                                </button>
+                                <button onclick="deleteModelFromCache('${model.repo_id}')" class="text-red-400 hover:text-red-300 transition p-1" title="Delete Model">
+                                    <i class="fa-regular fa-trash-can text-[10px]"></i>
+                                </button>
+                            </div>
+                        `;
+                        imageContainer.appendChild(card);
+                    });
+                }
+            }
         }
 
         async function deleteModelFromCache(repoId) {
