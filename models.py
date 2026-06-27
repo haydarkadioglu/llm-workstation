@@ -372,6 +372,18 @@ class ModelManager:
                     system_msg = {"role": "system", "content": ""}
                     active_messages.insert(0, system_msg)
                     
+                # Prepend a strong capability reminder to force model awareness of real-time tools
+                capability_reminder = (
+                    "You are the LLM Workstation assistant. You have access to tools, "
+                    "including a real-time 'web_search' tool. When the user asks for current/real-time "
+                    "information (like weather, news, or web docs), you MUST use the tools instead of refusing.\n\n"
+                )
+                
+                if isinstance(system_msg["content"], str):
+                    system_msg["content"] = capability_reminder + system_msg["content"]
+                else:
+                    system_msg["content"] = capability_reminder + str(system_msg["content"])
+                    
                 # Strict, token-efficient system instruction to prevent conversational pre-phrases and context bloat
                 tool_instructions = (
                     "\n\n[SYSTEM: Agent Mode Active]\n"
@@ -387,10 +399,7 @@ class ModelManager:
                     f"Available tools:\n{json.dumps(tools, indent=1)}\n\n"
                 )
                 
-                if isinstance(system_msg["content"], str):
-                    system_msg["content"] += tool_instructions
-                else:
-                    system_msg["content"] = str(system_msg["content"]) + tool_instructions
+                system_msg["content"] = str(system_msg["content"]) + tool_instructions
             except Exception as e:
                 print(f"[ModelManager Agent Warning] Tool injection failed: {e}")
                 

@@ -43,7 +43,11 @@ let chatHistory = [];
             }
             if (model !== null) document.getElementById("modelInput").value = model;
             if (modelToken !== null) document.getElementById("modelHfTokenInput").value = modelToken;
-            if (agent !== null) document.getElementById("agentToggle").checked = (agent === "true");
+            if (agent !== null) {
+                document.getElementById("agentToggle").checked = (agent === "true");
+            } else {
+                document.getElementById("agentToggle").checked = true;
+            }
         }
 
         function bindSettingListeners() {
