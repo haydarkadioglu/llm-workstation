@@ -467,7 +467,7 @@ class ModelManager:
                 )
                 return result.images[0]
 
-    def generate_video(self, prompt: str, negative_prompt: str = "", steps: int = 20, frames: int = 16, fps: int = 8):
+    def generate_video(self, prompt: str, negative_prompt: str = "", steps: int = 20, frames: int = 16, fps: int = 8, image: str = None):
         if not self.image_pipeline:
             raise ValueError("No video pipeline is loaded. Please load a video model first.")
             
@@ -491,6 +491,21 @@ class ModelManager:
                     kwargs["negative_prompt"] = negative_prompt
                 if generator:
                     kwargs["generator"] = generator
+                    
+                if image:
+                    if "," in image:
+                        image = image.split(",")[1]
+                    img_data = base64.b64decode(image)
+                    pil_image = Image.open(BytesIO(img_data)).convert("RGB")
+                    
+                    import inspect
+                    sig = inspect.signature(self.image_pipeline.__call__)
+                    if "image" in sig.parameters:
+                        kwargs["image"] = pil_image
+                    elif "init_image" in sig.parameters:
+                        kwargs["init_image"] = pil_image
+                    else:
+                        print("[ModelManager Warning] Current video pipeline does not accept 'image' or 'init_image'. Ignoring input image.")
                     
                 result = self.image_pipeline(**kwargs)
                 frames_output = result.frames

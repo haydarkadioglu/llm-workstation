@@ -1,4 +1,36 @@
 let selectedVideoIndices = [];
+let selectedVideoImageBase64 = null;
+
+function triggerVideoImageUpload() {
+    document.getElementById("videoImageInput").click();
+}
+
+function handleVideoImageSelection(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+        showToast("Please select a valid image file.", "warning");
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        selectedVideoImageBase64 = e.target.result;
+        document.getElementById("videoImagePreview").src = selectedVideoImageBase64;
+        document.getElementById("videoImageFileName").innerText = file.name;
+        document.getElementById("videoImagePreviewContainer").classList.remove("hidden");
+        appendLog(`Attached video condition image: ${file.name}`);
+    };
+    reader.readAsDataURL(file);
+}
+
+function clearSelectedVideoImage() {
+    selectedVideoImageBase64 = null;
+    document.getElementById("videoImageInput").value = "";
+    document.getElementById("videoImagePreviewContainer").classList.add("hidden");
+    document.getElementById("videoImagePreview").src = "";
+}
 
 function updateVideoDurationEst() {
     const framesVal = parseInt(document.getElementById("videoFramesInput").value);
@@ -79,7 +111,8 @@ async function generateVideo() {
                 negative_prompt: negativePrompt,
                 steps,
                 frames,
-                fps
+                fps,
+                image: selectedVideoImageBase64
             })
         });
         
@@ -96,6 +129,9 @@ async function generateVideo() {
             downloadBtn.href = base64Src;
             
             addToVideoGallery(base64Src, prompt);
+            
+            // Clear condition image upload after successful generation
+            clearSelectedVideoImage();
             
             appendLog("Video generated successfully.");
             showToast("Video generated successfully!", "success");
@@ -185,8 +221,6 @@ function toggleVideoSelection(index, event) {
     }
     
     updateMergeActionBar();
-    
-    // We update class name of checkbox container on-the-fly to keep visible if checked
     renderVideoGallery();
 }
 
@@ -206,7 +240,6 @@ function updateMergeActionBar() {
 async function mergeSelectedVideos() {
     if (selectedVideoIndices.length < 2) return;
     
-    // Sort indices descending to merge chronologically (oldest generated clip first)
     const sortedIndices = [...selectedVideoIndices].sort((a, b) => b - a);
     const base64List = sortedIndices.map(idx => videoGalleryList[idx].src);
     

@@ -768,6 +768,24 @@
                                 <textarea id="videoPrompt" rows="3" placeholder="A majestic waterfall cascading down a glowing crystal cave, slow motion, detailed 3D render..." class="w-full bg-[#131929]/40 border border-slate-800/80 rounded-xl px-4 py-3 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition resize-none"></textarea>
                             </div>
                             
+                            <!-- Video Image Condition (Image to Video) -->
+                            <div class="space-y-2">
+                                <label class="text-[10px] font-bold tracking-wider text-slate-400 font-mono uppercase block">Condition Image (Optional - for Image-to-Video models)</label>
+                                <div class="flex items-center gap-3 font-sans">
+                                    <button onclick="triggerVideoImageUpload()" class="px-3 py-2 bg-slate-800/80 hover:bg-slate-700 text-slate-200 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition">
+                                        <i class="fa-regular fa-image"></i>Attach Image
+                                    </button>
+                                    <input type="file" id="videoImageInput" accept="image/*" class="hidden" onchange="handleVideoImageSelection(event)">
+                                    <div id="videoImagePreviewContainer" class="hidden flex items-center gap-2 bg-[#131929]/50 border border-slate-800 rounded-xl p-1.5 pr-2.5">
+                                        <img id="videoImagePreview" src="" class="w-8 h-8 object-cover rounded-lg border border-slate-700">
+                                        <span id="videoImageFileName" class="text-[10px] text-slate-400 truncate max-w-[150px]">image.png</span>
+                                        <button onclick="clearSelectedVideoImage()" class="text-slate-500 hover:text-red-400 transition" title="Clear image">
+                                            <i class="fa-solid fa-xmark text-xs"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            
                             <div class="space-y-2">
                                 <label class="text-[10px] font-bold tracking-wider text-slate-400 font-mono uppercase block">Negative Prompt (What to exclude)</label>
                                 <input type="text" id="videoNegativePrompt" placeholder="blurry, low quality, distorted, static, ugly" class="w-full bg-[#131929]/40 border border-slate-800/80 rounded-xl px-4 py-3 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition">

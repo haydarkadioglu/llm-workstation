@@ -149,6 +149,7 @@ class VideoGeneratePayload(BaseModel):
     steps: Optional[int] = 20
     frames: Optional[int] = 16
     fps: Optional[int] = 8
+    image: Optional[str] = None
 
 @app.post("/api/video/generate")
 def generate_video_endpoint(payload: VideoGeneratePayload):
@@ -161,7 +162,8 @@ def generate_video_endpoint(payload: VideoGeneratePayload):
             negative_prompt=payload.negative_prompt,
             steps=payload.steps,
             frames=payload.frames,
-            fps=payload.fps
+            fps=payload.fps,
+            image=payload.image
         )
         return {"video_base64": f"data:video/mp4;base64,{base64_video}"}
     except Exception as err:
