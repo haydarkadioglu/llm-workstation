@@ -490,7 +490,21 @@ class ModelManager:
                     processed_messages = text_only_messages
                     image_inputs = []
 
+                # Fallback template to use if the model does not define one
+                fallback_template = (
+                    "{% for message in messages %}"
+                    "{{ '<|im_start|>' + message['role'] + '\\n' + message['content'] + '<|im_end|>\\n' }}"
+                    "{% endfor %}"
+                    "{% if add_generation_prompt %}"
+                    "{{ '<|im_start|>assistant\\n' }}"
+                    "{% endif %}"
+                )
+
                 if self.is_vision and len(image_inputs) > 0 and self.processor:
+                    if not getattr(self.processor, "chat_template", None) and not getattr(self.processor.tokenizer, "chat_template", None):
+                        print("[ModelManager] Processor has no chat_template, setting ChatML fallback.")
+                        self.processor.chat_template = fallback_template
+                    
                     prompt = self.processor.apply_chat_template(
                         processed_messages, 
                         tokenize=False, 
@@ -512,6 +526,10 @@ class ModelManager:
                             text_only_messages.append(msg)
                     
                     tokenizer_obj = self.tokenizer if self.tokenizer else self.processor.tokenizer
+                    if not getattr(tokenizer_obj, "chat_template", None):
+                        print("[ModelManager] Tokenizer has no chat_template, setting ChatML fallback.")
+                        tokenizer_obj.chat_template = fallback_template
+                        
                     prompt = tokenizer_obj.apply_chat_template(
                         text_only_messages, 
                         tokenize=False, 
