@@ -1542,6 +1542,14 @@ let chatHistory = [];
         }
 
         // Video Models Functions
+        function updateVideoDurationEst() {
+            const framesVal = parseInt(document.getElementById("videoFramesInput").value);
+            const fpsVal = parseInt(document.getElementById("videoFpsInput").value);
+            const est = (framesVal / fpsVal).toFixed(1);
+            const estEl = document.getElementById("videoDurationEst");
+            if (estEl) estEl.innerText = est;
+        }
+
         function selectVideoPreset(modelId) {
             document.getElementById("videoModelInput").value = modelId;
         }
@@ -1586,6 +1594,7 @@ let chatHistory = [];
             const negativePrompt = document.getElementById("videoNegativePrompt").value.trim();
             const steps = parseInt(document.getElementById("videoStepsInput").value);
             const frames = parseInt(document.getElementById("videoFramesInput").value);
+            const fps = parseInt(document.getElementById("videoFpsInput").value);
             
             if (!prompt) {
                 showToast("Please enter a video prompt.", "error");
@@ -1611,7 +1620,8 @@ let chatHistory = [];
                         prompt,
                         negative_prompt: negativePrompt,
                         steps,
-                        frames
+                        frames,
+                        fps
                     })
                 });
                 

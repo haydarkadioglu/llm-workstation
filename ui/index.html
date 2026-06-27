@@ -701,7 +701,21 @@
                                     <span class="text-slate-400">Frames:</span>
                                     <span id="videoFramesVal" class="text-indigo-400 font-bold">16</span>
                                 </div>
-                                <input type="range" id="videoFramesInput" min="8" max="24" step="8" value="16" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500" oninput="document.getElementById('videoFramesVal').innerText = this.value">
+                                <input type="range" id="videoFramesInput" min="8" max="24" step="8" value="16" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500" oninput="document.getElementById('videoFramesVal').innerText = this.value; updateVideoDurationEst();">
+                            </div>
+                            
+                            <!-- FPS (Frames per second) -->
+                            <div class="space-y-2">
+                                <div class="flex justify-between items-center text-xs font-mono">
+                                    <span class="text-slate-400">FPS (Frames/sec):</span>
+                                    <span id="videoFpsVal" class="text-indigo-400 font-bold">8</span>
+                                </div>
+                                <input type="range" id="videoFpsInput" min="4" max="20" value="8" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500" oninput="document.getElementById('videoFpsVal').innerText = this.value; updateVideoDurationEst();">
+                            </div>
+
+                            <!-- Duration Estimation Info -->
+                            <div class="text-[10px] text-slate-500 font-mono italic text-right">
+                                Est. Duration: <span id="videoDurationEst" class="text-slate-300 font-bold">2.0</span> seconds
                             </div>
                         </div>
 
