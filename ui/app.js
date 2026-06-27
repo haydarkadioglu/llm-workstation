@@ -242,6 +242,16 @@ let chatHistory = [];
                 }
             });
 
+            // Toggle main sidebar: show ONLY on Chat tab to prevent overlapping
+            const mainSidebar = document.getElementById("mainSidebar");
+            if (mainSidebar) {
+                if (hash === "#chat") {
+                    mainSidebar.classList.remove("hidden");
+                } else {
+                    mainSidebar.classList.add("hidden");
+                }
+            }
+
             if (hash === "#dashboard") {
                 // Short timeout to let the canvas resize/mount properly
                 setTimeout(() => { drawVramChart(); }, 50);
