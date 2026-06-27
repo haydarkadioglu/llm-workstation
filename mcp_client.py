@@ -137,6 +137,8 @@ class StdioMcpClient:
             except subprocess.TimeoutExpired:
                 self.process.kill()
 
+POST_PREFERRING_URLS = set()
+
 class SseMcpClient:
     def __init__(self, url: str):
         self.url = url
@@ -182,15 +184,28 @@ class SseMcpClient:
     def _read_sse(self):
         try:
             headers = {'User-Agent': 'Mozilla/5.0'}
-            try:
-                # Fail-fast on GET within 3s to allow quick POST fallback if server hangs on GET
-                response = requests.get(self.url, headers=headers, stream=True, timeout=3)
-                if response.status_code != 200:
-                    print(f"[SSE Client] GET returned status {response.status_code}, falling back to POST...")
-                    response = requests.post(self.url, headers=headers, stream=True, timeout=20)
-            except Exception as get_err:
-                print(f"[SSE Client Warning] GET request failed/timed out: {get_err}. Trying POST fallback...")
+            
+            # Check if this URL is known to require POST
+            use_post_directly = self.url in POST_PREFERRING_URLS
+            
+            response = None
+            if not use_post_directly:
+                try:
+                    # Fail-fast on GET within 3s to allow quick POST fallback if server hangs on GET
+                    response = requests.get(self.url, headers=headers, stream=True, timeout=3)
+                    if response.status_code != 200:
+                        print(f"[SSE Client] GET returned status {response.status_code}, falling back to POST...")
+                        use_post_directly = True
+                except Exception as get_err:
+                    print(f"[SSE Client Warning] GET request failed/timed out: {get_err}. Trying POST fallback...")
+                    use_post_directly = True
+            
+            if use_post_directly:
+                print(f"[SSE Client] Connecting to {self.url} using POST...")
                 response = requests.post(self.url, headers=headers, stream=True, timeout=20)
+                if response.status_code == 200:
+                    POST_PREFERRING_URLS.add(self.url)
+                    print(f"[SSE Client Cache] Cached {self.url} as POST-preferring endpoint.")
             
             current_event = None
             for line in response.iter_lines():
