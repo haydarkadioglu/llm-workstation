@@ -24,7 +24,16 @@ A self-contained, monolithic Python-based LLM (Large Language Model) workstation
 
 ## Quickstart
 
-### 1. Install Dependencies
+### 1. Clone the Repository
+
+Clone the project and navigate into the workspace directory:
+
+```bash
+git clone https://github.com/haydarkadioglu/llm-workstation
+cd llm-workstation
+```
+
+### 2. Install Dependencies
 
 Install the requirements from the provided `requirements.txt` file:
 
@@ -34,7 +43,7 @@ pip install -r requirements.txt
 
 *Note: On GPU servers or Google Colab, make sure you have PyTorch installed with CUDA support. You can install the correct PyTorch package according to your CUDA runtime.*
 
-### 2. Run the Workstation
+### 3. Run the Workstation
 
 Start the server using a single command:
 
