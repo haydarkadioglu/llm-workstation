@@ -389,8 +389,50 @@
                         <h3 class="text-sm font-semibold tracking-wide text-slate-200">IMAGE MODEL MANAGER</h3>
                         <p class="text-[10px] text-slate-400">Load and configure Stable Diffusion models.</p>
                     </div>
-                    
                     <div class="flex-1 overflow-y-auto p-5 space-y-6">
+                        <!-- GPU & VRAM Monitoring (Image Mode) -->
+                        <div class="bg-[#131929]/30 border border-slate-800/80 rounded-xl p-3.5 space-y-2 text-xs font-mono">
+                            <div class="flex justify-between items-center text-[10px] font-bold tracking-wider text-slate-400 font-mono uppercase">
+                                <span>GPU VRAM Usage</span>
+                                <span id="imageVramPct" class="text-indigo-400 font-bold">0%</span>
+                            </div>
+                            <div class="w-full bg-slate-800 rounded-full h-1">
+                                <div id="imageVramProgressBar" class="bg-indigo-500 h-1 rounded-full transition-all duration-500" style="width: 0%"></div>
+                            </div>
+                            <div class="flex justify-between text-slate-400 text-[10px] pt-1">
+                                <span>Used/Total:</span>
+                                <span id="imageVramUsedTotal" class="text-slate-300">0 / 0 MB</span>
+                            </div>
+                            <div class="flex justify-between text-slate-400 text-[10px]">
+                                <span>Disk Space:</span>
+                                <span id="imageDiskUsedTotal" class="text-slate-300">0 / 0 GB</span>
+                            </div>
+                        </div>
+
+                        <!-- Image Model Download Progress Card -->
+                        <div id="imageDownloadProgressCard" class="hidden bg-[#131929]/50 border border-indigo-500/20 rounded-xl p-3.5 space-y-2.5">
+                            <div class="flex justify-between items-center text-xs">
+                                <span id="imageDownloadStatusText" class="font-medium text-slate-300 truncate max-w-[170px]">Downloading...</span>
+                                <span id="imageDownloadPctText" class="text-indigo-400 font-mono font-bold">0%</span>
+                            </div>
+                            <div class="w-full bg-slate-800 rounded-full h-1.5">
+                                <div id="imageDownloadProgressBar" class="bg-indigo-500 h-1.5 rounded-full transition-all duration-500" style="width: 0%"></div>
+                            </div>
+                        </div>
+
+                        <!-- Image Model Load Error Alert Card -->
+                        <div id="imageModelLoadErrorCard" class="hidden bg-red-950/20 border border-red-900/40 rounded-xl p-3.5 space-y-1.5">
+                            <div class="flex justify-between items-center text-[10px] text-red-400 font-bold uppercase tracking-wider">
+                                <span><i class="fa-solid fa-triangle-exclamation mr-1.5"></i>Load Failed</span>
+                                <button onclick="document.getElementById('imageModelLoadErrorCard').classList.add('hidden')" class="hover:text-red-300 transition text-[11px] px-1">
+                                    <i class="fa-solid fa-xmark"></i>
+                                </button>
+                            </div>
+                            <div class="max-h-[100px] overflow-y-auto pr-1">
+                                <p id="imageModelLoadErrorText" class="text-[10px] text-red-350 leading-relaxed font-mono whitespace-pre-wrap break-all"></p>
+                            </div>
+                        </div>
+
                         <!-- Model Loader Form -->
                         <div class="space-y-3.5">
                             <label class="text-[11px] font-bold text-slate-400 tracking-wider block font-mono font-bold">HUGGING FACE ID:</label>

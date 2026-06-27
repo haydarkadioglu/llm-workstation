@@ -280,9 +280,6 @@ class ModelManager:
                     has_pre_quant = True
                     print(f"[ModelManager] Model is pre-quantized (found 'quantization_config' in config). Bypassing BitsAndBytesConfig...")
 
-                import tqdm
-                import tqdm.auto as tqdm_auto
-                
                 try:
                     tqdm.tqdm.__init__ = _patched_tqdm_init
                     tqdm.tqdm.update = _patched_tqdm_update

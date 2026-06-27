@@ -514,11 +514,61 @@ let chatHistory = [];
                     const offset = 314.15 - (314.15 * pct / 100);
                     document.getElementById("vramCircle").style.strokeDashoffset = offset;
                 }
-
-                // Update Disk space telemetry
+            // Update Disk space telemetry
                 if (data.system.disk) {
                     document.getElementById("diskUsedTotal").innerText = `${data.system.disk.used_gb} / ${data.system.disk.total_gb} GB`;
                     document.getElementById("diskProgressBar").style.width = `${data.system.disk.pct}%`;
+                    
+                    const imgDiskText = document.getElementById("imageDiskUsedTotal");
+                    if (imgDiskText) {
+                        imgDiskText.innerText = `${data.system.disk.used_gb} / ${data.system.disk.total_gb} GB`;
+                    }
+                }
+
+                // Update VRAM telemetry inside Image Model Manager sidebar
+                const imgVramPct = document.getElementById("imageVramPct");
+                const imgVramBar = document.getElementById("imageVramProgressBar");
+                const imgVramText = document.getElementById("imageVramUsedTotal");
+                if (imgVramPct && imgVramBar && imgVramText) {
+                    imgVramPct.innerText = `${pct.toFixed(0)}%`;
+                    imgVramBar.style.width = `${pct}%`;
+                    if (data.system.gpu_available && data.system.gpus.length > 0) {
+                        imgVramText.innerText = `${usedVramVal.toFixed(0)} / ${totalVramVal.toFixed(0)} MB`;
+                    } else {
+                        imgVramText.innerText = `${data.system.ram_used_gb.toFixed(1)} / ${data.system.ram_total_gb.toFixed(1)} GB`;
+                    }
+                }
+
+                // Update Image Model Load Progress and Error alerts
+                const imgProgCard = document.getElementById("imageDownloadProgressCard");
+                const imgErrCard = document.getElementById("imageModelLoadErrorCard");
+                const imgErrText = document.getElementById("imageModelLoadErrorText");
+                
+                if (data.model_status.startsWith("Downloading") || data.model_status.startsWith("Loading") || data.model_status.startsWith("Preparing")) {
+                    if (imgProgCard) {
+                        imgProgCard.classList.remove("hidden");
+                        const progressVal = data.loading_progress || 0;
+                        document.getElementById("imageDownloadPctText").innerText = `${progressVal}%`;
+                        document.getElementById("imageDownloadProgressBar").style.width = `${progressVal}%`;
+                        
+                        if (data.model_status.startsWith("Loading") && !data.loading_speed) {
+                            document.getElementById("imageDownloadStatusText").innerText = "loading VRAM shards...";
+                        } else {
+                            document.getElementById("imageDownloadStatusText").innerText = data.loading_speed || data.model_status;
+                        }
+                    }
+                    if (imgErrCard) imgErrCard.classList.add("hidden");
+                } else {
+                    if (imgProgCard) imgProgCard.classList.add("hidden");
+                }
+                
+                if (data.model_status === "Error loading model") {
+                    if (imgErrText) imgErrText.innerText = data.error_message || "Unknown error occurred.";
+                    if (imgErrCard) imgErrCard.classList.remove("hidden");
+                } else {
+                    if (imgErrCard && data.model_status === "Ready") {
+                        imgErrCard.classList.add("hidden");
+                    }
                 }
 
                 // Refresh cached models list when model state transitions to Ready
