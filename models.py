@@ -295,7 +295,6 @@ class ModelManager:
                                 raise ValueError(f"Failed to load image model. Errors: {'; '.join(errs)}")
                                 
                         if torch.cuda.is_available():
-                            import torch
                             self.image_pipeline.to("cuda")
                             
                         self.model_id = model_id
