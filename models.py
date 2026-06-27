@@ -372,17 +372,18 @@ class ModelManager:
                     system_msg = {"role": "system", "content": ""}
                     active_messages.insert(0, system_msg)
                     
-                # Optimized, token-efficient system instruction to prevent VRAM and context bloat
+                # Strict, token-efficient system instruction to prevent conversational pre-phrases and context bloat
                 tool_instructions = (
-                    "\n\n[Agent Mode Enabled]\n"
-                    "You can call tools to answer queries. To invoke a tool, output a single JSON block:\n"
+                    "\n\n[SYSTEM: Agent Mode Active]\n"
+                    "If you need to call a tool or search the web, you MUST output ONLY the JSON code block. "
+                    "Do NOT write any conversation, thoughts, or introduction before the JSON block (do NOT say 'I will search' or 'Lütfen bekleyin'). "
+                    "Output the JSON block immediately in this exact format:\n"
                     "```json\n"
                     "{\n"
                     "  \"tool\": \"tool_name\",\n"
                     "  \"arguments\": { ... }\n"
                     "}\n"
                     "```\n"
-                    "Output nothing else when calling tools. Wait for output.\n"
                     f"Available tools:\n{json.dumps(tools, indent=1)}\n\n"
                 )
                 
