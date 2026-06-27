@@ -93,10 +93,10 @@ async function generateVideo() {
     
     const btnGenerate = document.getElementById("btnGenerateVideo");
     const loader = document.getElementById("videoGeneratorLoader");
-    const placeholder = document.getElementById("videoPlaceholder");
-    const generatedVid = document.getElementById("generatedVideo");
-    const actions = document.getElementById("videoActions");
-    const downloadBtn = document.getElementById("btnDownloadVideo");
+    
+    // Reset loader progress UI
+    document.getElementById("videoLoaderProgressBar").style.width = "0%";
+    document.getElementById("videoLoaderStatusText").innerText = "Queuing generation task...";
     
     btnGenerate.disabled = true;
     btnGenerate.innerHTML = `<div class="w-4 h-4 border-2 border-slate-400 border-t-white rounded-full animate-spin"></div>Generating...`;
@@ -118,23 +118,9 @@ async function generateVideo() {
         
         if (response.ok) {
             const data = await response.json();
-            const base64Src = data.video_base64;
-            
-            placeholder.classList.add("hidden");
-            generatedVid.src = base64Src;
-            generatedVid.classList.remove("hidden");
-            generatedVid.load();
-            
-            actions.classList.remove("hidden");
-            downloadBtn.href = base64Src;
-            
-            addToVideoGallery(base64Src, prompt);
-            
-            // Clear condition image upload after successful generation
-            clearSelectedVideoImage();
-            
-            appendLog("Video generated successfully.");
-            showToast("Video generated successfully!", "success");
+            const taskId = data.task_id;
+            appendLog(`Video task scheduled (ID: ${taskId}). Polling status...`);
+            pollVideoStatus(taskId);
         } else {
             const data = await response.json();
             throw new Error(data.detail);
@@ -142,11 +128,73 @@ async function generateVideo() {
     } catch (err) {
         showToast(`Generation failed: ${err.message}`, "error");
         appendLog(`Video generation failed: ${err.message}`, true);
-    } finally {
         loader.classList.add("hidden");
         btnGenerate.disabled = false;
         btnGenerate.innerHTML = `<i class="fa-solid fa-video"></i>Generate Video`;
     }
+}
+
+function pollVideoStatus(taskId) {
+    const btnGenerate = document.getElementById("btnGenerateVideo");
+    const loader = document.getElementById("videoGeneratorLoader");
+    const placeholder = document.getElementById("videoPlaceholder");
+    const generatedVid = document.getElementById("generatedVideo");
+    const actions = document.getElementById("videoActions");
+    const downloadBtn = document.getElementById("btnDownloadVideo");
+    const prompt = document.getElementById("videoPrompt").value.trim();
+    const progressEl = document.getElementById("videoLoaderProgressBar");
+    const statusTextEl = document.getElementById("videoLoaderStatusText");
+
+    const interval = setInterval(async () => {
+        try {
+            const response = await fetch(`/api/video/status/${taskId}`);
+            if (!response.ok) {
+                throw new Error("Failed to check task status.");
+            }
+            const data = await response.json();
+            
+            if (data.status === "processing") {
+                const current = data.current_step || 0;
+                const total = data.total_steps || 20;
+                const pct = data.progress_pct || 0;
+                
+                progressEl.style.width = `${pct}%`;
+                statusTextEl.innerText = `Generating: ${current}/${total} steps (${pct}%)`;
+            } else if (data.status === "completed") {
+                clearInterval(interval);
+                const base64Src = data.result;
+                
+                placeholder.classList.add("hidden");
+                generatedVid.src = base64Src;
+                generatedVid.classList.remove("hidden");
+                generatedVid.load();
+                
+                actions.classList.remove("hidden");
+                downloadBtn.href = base64Src;
+                
+                addToVideoGallery(base64Src, prompt);
+                clearSelectedVideoImage();
+                
+                appendLog("Video generated successfully.");
+                showToast("Video generated successfully!", "success");
+                
+                loader.classList.add("hidden");
+                btnGenerate.disabled = false;
+                btnGenerate.innerHTML = `<i class="fa-solid fa-video"></i>Generate Video`;
+            } else if (data.status === "failed") {
+                clearInterval(interval);
+                throw new Error(data.error);
+            }
+        } catch (err) {
+            clearInterval(interval);
+            showToast(`Generation failed: ${err.message}`, "error");
+            appendLog(`Video generation failed: ${err.message}`, true);
+            
+            loader.classList.add("hidden");
+            btnGenerate.disabled = false;
+            btnGenerate.innerHTML = `<i class="fa-solid fa-video"></i>Generate Video`;
+        }
+    }, 2000); // Check status every 2 seconds
 }
 
 function addToVideoGallery(base64Src, prompt) {

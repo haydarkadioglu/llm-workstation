@@ -803,11 +803,14 @@
                             <!-- Left: Active Preview -->
                             <div class="flex-1 bg-[#0d1322]/40 border border-slate-800/60 rounded-2xl p-6 min-h-[300px] flex flex-col items-center justify-center relative overflow-hidden">
                                 <!-- Loader Overlay -->
-                                <div id="videoGeneratorLoader" class="hidden absolute inset-0 bg-[#070A13]/80 flex flex-col items-center justify-center gap-4 z-20 backdrop-blur-sm">
+                                <div id="videoGeneratorLoader" class="hidden absolute inset-0 bg-[#070A13]/90 flex flex-col items-center justify-center gap-4 z-20 backdrop-blur-sm font-sans p-6">
                                     <div class="w-10 h-10 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin"></div>
-                                    <div class="text-center font-sans">
-                                        <p class="text-xs font-bold text-slate-200">Rendering Video frames...</p>
-                                        <p class="text-[10px] text-indigo-400 font-mono mt-1">This may take 1-2 minutes depending on your GPU VRAM.</p>
+                                    <div class="text-center space-y-2 w-full max-w-xs">
+                                        <p id="videoLoaderStatusText" class="text-xs font-bold text-slate-200">Rendering Video frames...</p>
+                                        <div class="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                                            <div id="videoLoaderProgressBar" class="bg-indigo-500 h-1.5 rounded-full transition-all duration-300" style="width: 0%"></div>
+                                        </div>
+                                        <p class="text-[9px] text-indigo-400 font-mono">This may take a few minutes depending on VRAM & steps.</p>
                                     </div>
                                 </div>
                                 

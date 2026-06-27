@@ -151,11 +151,15 @@ class VideoGeneratePayload(BaseModel):
     fps: Optional[int] = 8
     image: Optional[str] = None
 
-@app.post("/api/video/generate")
-def generate_video_endpoint(payload: VideoGeneratePayload):
-    if not model_manager.image_pipeline:
-        raise HTTPException(status_code=400, detail="No video pipeline is loaded. Please load a video model first.")
-    
+video_tasks = {}
+
+def run_video_generation(task_id: str, payload: VideoGeneratePayload):
+    def on_progress(current_step: int, total_steps: int):
+        progress_pct = int((current_step / total_steps) * 100)
+        video_tasks[task_id]["current_step"] = current_step
+        video_tasks[task_id]["total_steps"] = total_steps
+        video_tasks[task_id]["progress_pct"] = min(progress_pct, 99)
+
     try:
         base64_video = model_manager.generate_video(
             prompt=payload.prompt,
@@ -163,11 +167,48 @@ def generate_video_endpoint(payload: VideoGeneratePayload):
             steps=payload.steps,
             frames=payload.frames,
             fps=payload.fps,
-            image=payload.image
+            image=payload.image,
+            progress_callback=on_progress
         )
-        return {"video_base64": f"data:video/mp4;base64,{base64_video}"}
+        video_tasks[task_id] = {
+            "status": "completed",
+            "result": f"data:video/mp4;base64,{base64_video}",
+            "progress_pct": 100,
+            "current_step": payload.steps,
+            "total_steps": payload.steps
+        }
     except Exception as err:
-        raise HTTPException(status_code=500, detail=str(err))
+        video_tasks[task_id] = {
+            "status": "failed",
+            "error": str(err),
+            "progress_pct": 0,
+            "current_step": 0,
+            "total_steps": payload.steps
+        }
+
+@app.post("/api/video/generate")
+def generate_video_endpoint(payload: VideoGeneratePayload):
+    if not model_manager.image_pipeline:
+        raise HTTPException(status_code=400, detail="No video pipeline is loaded. Please load a video model first.")
+    
+    task_id = str(uuid.uuid4())
+    video_tasks[task_id] = {
+        "status": "processing",
+        "progress_pct": 0,
+        "current_step": 0,
+        "total_steps": payload.steps
+    }
+    
+    t = threading.Thread(target=run_video_generation, args=(task_id, payload))
+    t.start()
+    
+    return {"task_id": task_id, "status": "processing"}
+
+@app.get("/api/video/status/{task_id}")
+def get_video_status(task_id: str):
+    if task_id not in video_tasks:
+        raise HTTPException(status_code=404, detail="Task not found.")
+    return video_tasks[task_id]
 
 class VideoMergePayload(BaseModel):
     video_base64_list: List[str]
