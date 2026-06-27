@@ -589,27 +589,69 @@ let chatHistory = [];
         function renderContent(content) {
             let processed = content;
             
-            // Format active tool call blocks (⚙️ [Calling Tool...]) and results (📊 [Tool Result...])
+            // Remove raw JSON tool call blocks entirely to clean up the chat log
+            processed = processed.replace(/```(?:json)?\s*\{\s*"tool"[\s\S]*?\}\s*```/g, "");
+            processed = processed.replace(/```(?:json)?\s*\{\s*"tool"[\s\S]*?$/g, ""); // partial stream
+            
+            const widgets = [];
+            
+            // Replace completed think blocks with placeholders
+            processed = processed.replace(/<think>([\s\S]*?)<\/think>/g, function(match, thinkingText) {
+                const id = widgets.length;
+                widgets.push(`
+                    <details class="group mb-3 bg-[#0c101b]/60 border border-slate-800/80 rounded-xl overflow-hidden shadow-md">
+                        <summary class="cursor-pointer px-4 py-2 text-xs font-semibold text-slate-400 bg-[#131929]/50 hover:bg-[#1a2136]/50 transition flex items-center justify-between select-none">
+                            <span class="flex items-center gap-1.5 font-mono"><i class="fa-solid fa-brain text-indigo-400"></i> Thinking Process</span>
+                            <i class="fa-solid fa-chevron-down text-[9px] text-slate-500 group-open:rotate-180 transition-transform duration-200"></i>
+                        </summary>
+                        <div class="p-4 text-[11px] leading-relaxed text-slate-400 border-t border-slate-800/40 font-mono whitespace-pre-wrap bg-[#080B13]/30">${parseMarkdown(thinkingText.trim())}</div>
+                    </details>
+                `);
+                return `WIDGETID_${id}_TOKEN`;
+            });
+            
+            // Replace active think block with placeholder
+            const openThinkIdx = processed.indexOf("<think>");
+            if (openThinkIdx !== -1) {
+                const thinkingText = processed.substring(openThinkIdx + 7);
+                processed = processed.substring(0, openThinkIdx);
+                const id = widgets.length;
+                widgets.push(`
+                    <details class="group mb-3 bg-[#0c101b]/60 border border-indigo-500/20 rounded-xl overflow-hidden shadow-md" open>
+                        <summary class="cursor-pointer px-4 py-2 text-xs font-semibold text-slate-350 bg-[#131929]/50 hover:bg-[#1a2136]/50 transition flex items-center justify-between select-none">
+                            <span class="flex items-center gap-1.5 font-mono"><i class="fa-solid fa-brain text-indigo-400 animate-pulse"></i> Thinking...</span>
+                            <i class="fa-solid fa-chevron-down text-[9px] text-slate-500 group-open:rotate-180 transition-transform duration-200"></i>
+                        </summary>
+                        <div class="p-4 text-[11px] leading-relaxed text-slate-400 border-t border-slate-800/40 font-mono whitespace-pre-wrap bg-[#080B13]/30">${parseMarkdown(thinkingText.trim())}</div>
+                    </details>
+                `);
+                processed += `WIDGETID_${id}_TOKEN`;
+            }
+            
+            // Replace Tool Call logs with placeholders
             processed = processed.replace(/⚙️ \*\*\[Calling Tool: `([^`]+)` with arguments ([^\]]+)\]\*\*/g, function(match, name, args) {
-                return `
+                const id = widgets.length;
+                widgets.push(`
                 <div class="my-3.5 bg-[#090d16] border border-indigo-500/20 rounded-xl p-3 shadow-md">
                     <div class="flex items-center gap-2 text-xs font-semibold text-indigo-400 font-mono">
                         <i class="fa-solid fa-gear animate-spin text-[11px]"></i>
                         <span>CALLING TOOL: ${name}</span>
                     </div>
                     <pre class="mt-2 text-[10px] text-indigo-300 font-mono whitespace-pre-wrap bg-slate-950/40 p-2.5 rounded-lg border border-slate-800/40 overflow-x-auto">${args}</pre>
-                </div>`;
+                </div>`);
+                return `WIDGETID_${id}_TOKEN`;
             });
             
+            // Replace Tool Result logs with placeholders
             processed = processed.replace(/📊 \*\*\[Tool Result: `([\s\S]*?)`\]\*\*/g, function(match, result) {
-                // Try parsing result to format it nicely if it's JSON
                 let displayResult = result;
                 try {
                     const parsed = JSON.parse(result);
                     displayResult = JSON.stringify(parsed, null, 2);
                 } catch(e) {}
                 
-                return `
+                const id = widgets.length;
+                widgets.push(`
                 <div class="my-3.5 bg-[#070b12] border border-emerald-500/20 rounded-xl p-3 shadow-md">
                     <details class="group" open>
                         <summary class="cursor-pointer flex items-center justify-between text-xs font-semibold text-emerald-400 font-mono select-none">
@@ -623,72 +665,38 @@ let chatHistory = [];
                             <pre class="text-[10px] text-slate-300 font-mono whitespace-pre-wrap bg-slate-950/40 p-2.5 rounded-lg border border-slate-800/40 overflow-x-auto max-h-52 overflow-y-auto">${displayResult}</pre>
                         </div>
                     </details>
-                </div>`;
+                </div>`);
+                return `WIDGETID_${id}_TOKEN`;
             });
-
+            
+            // Replace Tool Failed logs with placeholders
             processed = processed.replace(/❌ \*\*\[Tool Execution Failed: ([^\]]+)\]\*\*/g, function(match, err) {
-                return `
+                const id = widgets.length;
+                widgets.push(`
                 <div class="my-3.5 bg-red-950/20 border border-red-500/20 rounded-xl p-3 shadow-md">
                     <div class="flex items-center gap-2 text-xs font-semibold text-red-400 font-mono">
                         <i class="fa-solid fa-triangle-exclamation text-[11px]"></i>
                         <span>TOOL EXECUTION FAILED</span>
                     </div>
                     <p class="mt-2 text-[10px] text-red-300 font-mono bg-slate-950/30 p-2 rounded border border-red-950">${err}</p>
-                </div>`;
+                </div>`);
+                return `WIDGETID_${id}_TOKEN`;
             });
-
-            // Parse reasoning <think> ... </think> blocks (supports multiple tags)
-            let resultHtml = "";
-            let lastIndex = 0;
-            const thinkRegex = /<think>([\s\S]*?)(<\/think>|$)/g;
-            let match;
             
-            while ((match = thinkRegex.exec(processed)) !== null) {
-                // Add conversational text before the think block
-                if (match.index > lastIndex) {
-                    resultHtml += parseMarkdown(processed.substring(lastIndex, match.index));
-                }
-                
-                const thinkingText = match[1].trim();
-                const isClosed = match[2] === "</think>";
-                
-                if (isClosed) {
-                    resultHtml += `
-                        <details class="group mb-3 bg-[#0c101b]/60 border border-slate-800/80 rounded-xl overflow-hidden shadow-md">
-                            <summary class="cursor-pointer px-4 py-2 text-xs font-semibold text-slate-400 bg-[#131929]/50 hover:bg-[#1a2136]/50 transition flex items-center justify-between select-none">
-                                <span class="flex items-center gap-1.5 font-mono"><i class="fa-solid fa-brain text-indigo-400"></i> Thinking Process</span>
-                                <i class="fa-solid fa-chevron-down text-[9px] text-slate-500 group-open:rotate-180 transition-transform duration-200"></i>
-                            </summary>
-                            <div class="p-4 text-[11px] leading-relaxed text-slate-400 border-t border-slate-800/40 font-mono whitespace-pre-wrap bg-[#080B13]/30">${parseMarkdown(thinkingText)}</div>
-                        </details>
-                    `;
-                } else {
-                    // Still active thinking
-                    resultHtml += `
-                        <details class="group mb-3 bg-[#0c101b]/60 border border-indigo-500/20 rounded-xl overflow-hidden shadow-md" open>
-                            <summary class="cursor-pointer px-4 py-2 text-xs font-semibold text-slate-300 bg-[#131929]/50 hover:bg-[#1a2136]/50 transition flex items-center justify-between select-none">
-                                <span class="flex items-center gap-1.5 font-mono"><i class="fa-solid fa-brain text-indigo-400 animate-pulse"></i> Thinking...</span>
-                                <i class="fa-solid fa-chevron-down text-[9px] text-slate-500 group-open:rotate-180 transition-transform duration-200"></i>
-                            </summary>
-                            <div class="p-4 text-[11px] leading-relaxed text-slate-400 border-t border-slate-800/40 font-mono whitespace-pre-wrap bg-[#080B13]/30">${parseMarkdown(thinkingText)}</div>
-                        </details>
-                    `;
-                }
-                
-                lastIndex = thinkRegex.lastIndex;
+            // Convert markdown for the conversational parts (keeping WIDGETID_X_TOKEN intact)
+            let finalHtml = parseMarkdown(processed);
+            
+            // Replace placeholders back with their unescaped rich HTML widgets
+            for (let i = 0; i < widgets.length; i++) {
+                finalHtml = finalHtml.replace(`WIDGETID_${i}_TOKEN`, widgets[i]);
             }
             
-            // Add remaining content
-            if (lastIndex < processed.length) {
-                resultHtml += parseMarkdown(processed.substring(lastIndex));
-            }
-            
-            // If active thinking block has no closing tag and we are generating, add cursor placeholder to end
+            // If active thinking is happening, append a cursor
             if (content.includes("<think>") && !content.includes("</think>") && isGenerating) {
-                resultHtml += `<span class="inline-block w-1.5 h-4 bg-slate-400 animate-pulse"></span>`;
+                finalHtml += `<span class="inline-block w-1.5 h-4 bg-slate-400 animate-pulse"></span>`;
             }
             
-            return resultHtml;
+            return finalHtml;
         }
 
         // Simple HTML Markdown parser
