@@ -4,6 +4,14 @@ A self-contained, monolithic Python-based LLM (Large Language Model) workstation
 
 ---
 
+## Preview
+
+| Chat & Tool Agent View | Image Generation View |
+| :---: | :---: |
+| ![Chat View](assets/chat.png) | ![Image Generation View](assets/image-model.png) |
+
+---
+
 ## Features
 
 1. **Monolithic & Portable**: The entire backend, telemetry engine, Cloudflare tunnel automations, and a fully featured responsive dark-mode SPA (Single Page Application) frontend are contained inside `app.py`.
