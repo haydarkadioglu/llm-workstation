@@ -156,14 +156,14 @@ def generate_video_endpoint(payload: VideoGeneratePayload):
         raise HTTPException(status_code=400, detail="No video pipeline is loaded. Please load a video model first.")
     
     try:
-        base64_gif = model_manager.generate_video(
+        base64_video = model_manager.generate_video(
             prompt=payload.prompt,
             negative_prompt=payload.negative_prompt,
             steps=payload.steps,
             frames=payload.frames,
             fps=payload.fps
         )
-        return {"video_base64": f"data:image/gif;base64,{base64_gif}"}
+        return {"video_base64": f"data:video/mp4;base64,{base64_video}"}
     except Exception as err:
         raise HTTPException(status_code=500, detail=str(err))
 

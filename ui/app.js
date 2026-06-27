@@ -1604,7 +1604,7 @@ let chatHistory = [];
             const btnGenerate = document.getElementById("btnGenerateVideo");
             const loader = document.getElementById("videoGeneratorLoader");
             const placeholder = document.getElementById("videoPlaceholder");
-            const generatedGif = document.getElementById("generatedVideoGif");
+            const generatedVid = document.getElementById("generatedVideo");
             const actions = document.getElementById("videoActions");
             const downloadBtn = document.getElementById("btnDownloadVideo");
             
@@ -1630,8 +1630,9 @@ let chatHistory = [];
                     const base64Src = data.video_base64;
                     
                     placeholder.classList.add("hidden");
-                    generatedGif.src = base64Src;
-                    generatedGif.classList.remove("hidden");
+                    generatedVid.src = base64Src;
+                    generatedVid.classList.remove("hidden");
+                    generatedVid.load();
                     
                     actions.classList.remove("hidden");
                     downloadBtn.href = base64Src;
@@ -1679,9 +1680,10 @@ let chatHistory = [];
                 wrapper.className = "group relative bg-[#131929]/40 border border-slate-800 rounded-xl overflow-hidden cursor-pointer hover:border-slate-600 transition";
                 wrapper.onclick = () => {
                     document.getElementById("videoPlaceholder").classList.add("hidden");
-                    const generatedGif = document.getElementById("generatedVideoGif");
-                    generatedGif.src = item.src;
-                    generatedGif.classList.remove("hidden");
+                    const generatedVid = document.getElementById("generatedVideo");
+                    generatedVid.src = item.src;
+                    generatedVid.classList.remove("hidden");
+                    generatedVid.load();
                     
                     const actions = document.getElementById("videoActions");
                     actions.classList.remove("hidden");
@@ -1691,7 +1693,7 @@ let chatHistory = [];
                 };
                 
                 wrapper.innerHTML = `
-                    <img class="w-full h-28 object-cover opacity-80 group-hover:opacity-100 transition" src="${item.src}">
+                    <video class="w-full h-28 object-cover opacity-80 group-hover:opacity-100 transition" src="${item.src}" muted playsinline loop autoplay></video>
                     <button onclick="deleteFromVideoGallery(${index}, event)" class="absolute top-2 right-2 w-6 h-6 rounded-lg bg-red-950/80 border border-red-800/40 text-red-400 hover:text-red-300 flex items-center justify-center opacity-0 group-hover:opacity-100 transition duration-150 z-10" title="Delete from gallery">
                         <i class="fa-regular fa-trash-can text-[10px]"></i>
                     </button>
@@ -1717,10 +1719,10 @@ let chatHistory = [];
             renderVideoGallery();
             
             // Reset preview frame if this video was currently active
-            const generatedGif = document.getElementById("generatedVideoGif");
-            if (generatedGif && generatedGif.src === item.src) {
-                generatedGif.src = "";
-                generatedGif.classList.add("hidden");
+            const generatedVid = document.getElementById("generatedVideo");
+            if (generatedVid && generatedVid.src === item.src) {
+                generatedVid.src = "";
+                generatedVid.classList.add("hidden");
                 document.getElementById("videoPlaceholder").classList.remove("hidden");
                 document.getElementById("videoActions").classList.add("hidden");
             }
