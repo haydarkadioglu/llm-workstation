@@ -8,6 +8,58 @@ let chatHistory = [];
         let lastModelStatus = "";
         let lastErrorMessageLogged = "";
 
+        // Custom premium toast notification helper
+        function showToast(desc, type = "info") {
+            const container = document.getElementById("toast-container");
+            if (!container) return;
+            
+            const toast = document.createElement("div");
+            toast.className = `toast-msg ${type}`;
+            
+            let iconClass = "fa-solid fa-circle-info";
+            let titleText = "Information";
+            if (type === "success") {
+                iconClass = "fa-solid fa-circle-check";
+                titleText = "Success";
+            } else if (type === "error") {
+                iconClass = "fa-solid fa-circle-xmark";
+                titleText = "Error";
+            } else if (type === "warning") {
+                iconClass = "fa-solid fa-triangle-exclamation";
+                titleText = "Warning";
+            }
+            
+            toast.innerHTML = `
+                <div class="toast-icon">
+                    <i class="${iconClass}"></i>
+                </div>
+                <div class="toast-content">
+                    <div class="toast-title">${titleText}</div>
+                    <div class="toast-desc">${desc}</div>
+                </div>
+                <button class="toast-close" onclick="this.parentElement.remove()">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            `;
+            
+            container.appendChild(toast);
+            
+            // Trigger animation frame to slide in
+            requestAnimationFrame(() => {
+                toast.classList.add("show");
+            });
+            
+            // Auto dismiss after 5s
+            setTimeout(() => {
+                if (toast.parentElement) {
+                    toast.classList.remove("show");
+                    toast.addEventListener("transitionend", () => {
+                        toast.remove();
+                    });
+                }
+            }, 5000);
+        }
+
         // Save parameters to local storage on change
         function saveSettings() {
             localStorage.setItem("sys_prompt", document.getElementById("sysPrompt").value);
@@ -504,7 +556,7 @@ let chatHistory = [];
         async function triggerModelLoad() {
             const input = document.getElementById("modelInput").value.trim();
             if (!input) {
-                alert("Please enter a valid Hugging Face Model ID.");
+                showToast("Please enter a valid Hugging Face Model ID.", "warning");
                 return;
             }
             
@@ -551,7 +603,7 @@ let chatHistory = [];
             if (!file) return;
 
             if (!file.type.startsWith("image/")) {
-                alert("Please select a valid image file.");
+                showToast("Please select a valid image file.", "warning");
                 return;
             }
 
@@ -989,14 +1041,14 @@ let chatHistory = [];
             const payload = { type };
             if (type === 'stdio') {
                 if (!command) {
-                    alert("Please specify a command (e.g. npx)");
+                    showToast("Please specify a command (e.g. npx)", "warning");
                     return;
                 }
                 payload.command = command;
                 payload.args = args;
             } else {
                 if (!url) {
-                    alert("Please specify an SSE URL");
+                    showToast("Please specify an SSE URL", "warning");
                     return;
                 }
                 payload.url = url;
@@ -1024,7 +1076,7 @@ let chatHistory = [];
                 
                 fetchConnectedClients();
             } catch (err) {
-                alert(`Error: ${err.message}`);
+                showToast(`Error: ${err.message}`, "error");
                 appendLog(`External connection failed: ${err.message}`, true);
             }
         }
@@ -1110,6 +1162,6 @@ let chatHistory = [];
                 }
             } catch (err) {
                 appendLog(`Failed to delete model: ${err.message}`, true);
-                alert(`Error: ${err.message}`);
+                showToast(`Error: ${err.message}`, "error");
             }
         }
