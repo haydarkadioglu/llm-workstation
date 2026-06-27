@@ -167,6 +167,23 @@ def generate_video_endpoint(payload: VideoGeneratePayload):
     except Exception as err:
         raise HTTPException(status_code=500, detail=str(err))
 
+class VideoMergePayload(BaseModel):
+    video_base64_list: List[str]
+    fps: Optional[int] = 8
+
+@app.post("/api/video/merge")
+def merge_videos_endpoint(payload: VideoMergePayload):
+    if not payload.video_base64_list:
+        raise HTTPException(status_code=400, detail="Video list cannot be empty.")
+    try:
+        base64_video = model_manager.merge_videos(
+            base64_videos=payload.video_base64_list,
+            fps=payload.fps
+        )
+        return {"video_base64": f"data:video/mp4;base64,{base64_video}"}
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=str(err))
+
 @app.post("/api/chat")
 async def chat_endpoint(payload: ChatPayload):
     formatted_messages = []

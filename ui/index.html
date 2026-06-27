@@ -811,6 +811,15 @@
                             <!-- Right: History Panel -->
                             <div class="w-full md:w-80 bg-[#0d1322]/20 border border-slate-800/40 rounded-2xl p-5 flex flex-col min-h-[250px] font-sans">
                                 <h4 class="text-xs font-bold tracking-wider text-slate-400 font-mono uppercase mb-4">Session Gallery</h4>
+                                
+                                <!-- Floating Merge Action Bar -->
+                                <div id="videoMergeActionBar" class="hidden mb-3 p-2 bg-indigo-950/40 border border-indigo-500/20 rounded-xl flex items-center justify-between gap-2 transition duration-200">
+                                    <span class="text-[10px] text-indigo-300 font-mono"><span id="selectedVideoCount" class="font-bold">0</span> selected</span>
+                                    <button onclick="mergeSelectedVideos()" class="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-[10px] font-semibold flex items-center gap-1.5 transition">
+                                        <i class="fa-solid fa-code-branch rotate-90"></i>Merge
+                                    </button>
+                                </div>
+                                
                                 <div id="videoHistory" class="flex-1 grid grid-cols-2 md:grid-cols-1 gap-3 overflow-y-auto max-h-[400px] pr-1">
                                     <!-- Empty state -->
                                     <p id="videoGalleryEmptyState" class="text-[10px] text-slate-500 italic block py-2 text-center col-span-2 md:col-span-1">No videos generated yet.</p>

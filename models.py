@@ -541,6 +541,53 @@ class ModelManager:
                     except Exception:
                         pass
 
+    def merge_videos(self, base64_videos: List[str], fps: int = 8) -> str:
+        import tempfile
+        import os
+        import base64
+        import imageio
+        from diffusers.utils import export_to_video
+        
+        all_frames = []
+        for b64_vid in base64_videos:
+            if "," in b64_vid:
+                b64_vid = b64_vid.split(",")[1]
+            vid_bytes = base64.b64decode(b64_vid)
+            
+            with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as tmp_in:
+                tmp_in.write(vid_bytes)
+                tmp_in_path = tmp_in.name
+                
+            try:
+                reader = imageio.get_reader(tmp_in_path, format="mp4")
+                for frame in reader:
+                    all_frames.append(frame)
+                reader.close()
+            finally:
+                if os.path.exists(tmp_in_path):
+                    try:
+                        os.remove(tmp_in_path)
+                    except Exception:
+                        pass
+                        
+        if not all_frames:
+            raise ValueError("No video frames could be read for merging.")
+            
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as tmp_out:
+            tmp_out_path = tmp_out.name
+            
+        try:
+            export_to_video(all_frames, tmp_out_path, fps=fps)
+            with open(tmp_out_path, "rb") as f:
+                merged_bytes = f.read()
+            return base64.b64encode(merged_bytes).decode("utf-8")
+        finally:
+            if os.path.exists(tmp_out_path):
+                try:
+                    os.remove(tmp_out_path)
+                except Exception:
+                    pass
+
     def generate_stream(self, messages: List[Dict[str, Any]], temperature: float = 0.7, top_p: float = 0.9, max_tokens: int = 512, agent_mode: bool = False):
         if not self.model:
             yield "Error: No model is currently loaded. Please load a model first."
