@@ -1,0 +1,594 @@
+import os
+import gc
+import re
+import time
+import base64
+import json
+import threading
+from io import BytesIO
+from typing import List, Dict, Any, Optional
+from PIL import Image
+
+try:
+    import torch
+except ImportError:
+    pass
+
+import tqdm
+
+# Global reference to hook progress bar tracking
+_global_manager_ref = None
+
+# Custom Tqdm wrapper to intercept Hugging Face download and VRAM load progress
+class InterceptTqdm(tqdm.tqdm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        desc = kwargs.get("desc", "Downloading") or ""
+        global _global_manager_ref
+        if _global_manager_ref:
+            desc_lower = desc.lower()
+            if "loading" in desc_lower or "shard" in desc_lower:
+                _global_manager_ref.status = f"Loading: {desc}"
+            else:
+                _global_manager_ref.status = f"Downloading: {desc}"
+            _global_manager_ref.loading_progress = 0
+            _global_manager_ref.loading_speed = ""
+
+    def update(self, n=1):
+        super().update(n)
+        global _global_manager_ref
+        if _global_manager_ref:
+            mgr = _global_manager_ref
+            if self.total and self.total > 0:
+                pct = int((self.n / self.total) * 100)
+                mgr.loading_progress = pct
+                
+                desc_lower = (self.desc or "").lower()
+                is_loading_phase = "loading" in desc_lower or "shard" in desc_lower
+                
+                rate = self.format_dict.get("rate")
+                if rate is not None and not is_loading_phase:
+                    if rate > 1024 * 1024:
+                        mgr.loading_speed = f"{rate / (1024 * 1024):.1f} MB/s"
+                    elif rate > 1024:
+                        mgr.loading_speed = f"{rate / 1024:.1f} KB/s"
+                    else:
+                        mgr.loading_speed = f"{rate:.1f} B/s"
+                else:
+                    mgr.loading_speed = ""
+                
+                if is_loading_phase:
+                    mgr.status = f"Loading: {pct}%"
+                else:
+                    speed_str = f" ({mgr.loading_speed})" if mgr.loading_speed else ""
+                    mgr.status = f"Downloading: {pct}%{speed_str}"
+
+def decode_base64_image(base64_str: str) -> Image.Image:
+    if "," in base64_str:
+        base64_str = base64_str.split(",")[1]
+    image_data = base64.b64decode(base64_str)
+    return Image.open(BytesIO(image_data)).convert("RGB")
+BUILTIN_TOOLS = [
+    {
+        "name": "web_search",
+        "description": "Search the web/internet using DuckDuckGo to find real-time info, news, current events, or documentation.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "The search keywords or query"
+                }
+            },
+            "required": ["query"]
+        }
+    }
+]
+
+def builtin_web_search(query: str) -> list:
+    import urllib.request
+    import urllib.parse
+    import json
+    
+    url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(query)}"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
+    
+    try:
+        req = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(req, timeout=8) as response:
+            html_data = response.read().decode("utf-8", errors="ignore")
+            
+        try:
+            from bs4 import BeautifulSoup
+            soup = BeautifulSoup(html_data, "html.parser")
+            results = []
+            for item in soup.find_all("div", class_="result__body"):
+                title_a = item.find("a", class_="result__url")
+                snippet_a = item.find("a", class_="result__snippet")
+                if title_a and snippet_a:
+                    results.append({
+                        "title": title_a.get_text(strip=True),
+                        "link": title_a["href"],
+                        "snippet": snippet_a.get_text(strip=True)
+                    })
+                if len(results) >= 5:
+                    break
+            return results
+        except ImportError:
+            import re
+            results = []
+            bodies = re.findall(r'<div class="result__body">([\s\S]*?)</div>\s*</div>', html_data)
+            for body in bodies:
+                title_match = re.search(r'href="([^"]+)"[^>]*class="[^"]*result__url[^"]*"[^>]*>([\s\S]*?)</a>', body)
+                snippet_match = re.search(r'class="[^"]*result__snippet[^"]*"[^>]*>([\s\S]*?)</a>', body)
+                if title_match and snippet_match:
+                    title = re.sub(r'<[^>]+>', '', title_match.group(2)).strip()
+                    link = title_match.group(1).strip()
+                    snippet = re.sub(r'<[^>]+>', '', snippet_match.group(1)).strip()
+                    results.append({
+                        "title": title,
+                        "link": link,
+                        "snippet": snippet
+                    })
+                if len(results) >= 5:
+                    break
+            return results if results else [{"title": "Search", "snippet": "No results matched fallback regex."}]
+    except Exception as e:
+        print(f"[Built-in Search Error] Failed: {e}")
+        return [{"error": f"Search failed: {str(e)}"}]
+
+def parse_tool_call_json(text: str) -> Optional[dict]:
+    text = text.strip()
+    
+    # Try finding markdown code block: ```json ... ``` or ``` ... ```
+    json_match = re.search(r"```(?:json)?\s*(\{[\s\S]*?\})\s*```", text)
+    if json_match:
+        try:
+            parsed = json.loads(json_match.group(1))
+            if "tool" in parsed:
+                return parsed
+        except Exception:
+            pass
+            
+    # Try parsing raw string bounding braces
+    try:
+        start = text.find("{")
+        end = text.rfind("}")
+        if start != -1 and end != -1 and end > start:
+            parsed = json.loads(text[start:end+1])
+            if "tool" in parsed:
+                return parsed
+    except Exception:
+        pass
+        
+    return None
+
+class ModelManager:
+    def __init__(self):
+        global _global_manager_ref
+        self.model = None
+        self.tokenizer = None
+        self.processor = None
+        self.model_id = None
+        self.is_vision = False
+        self.status = "No model loaded"
+        self.loading_progress = 0
+        self.loading_speed = ""
+        self.error_message = None
+        self.last_tokens_per_sec = 0.0
+        self.lock = threading.Lock()
+        
+        _global_manager_ref = self
+
+    def unload_current_model(self):
+        print("[ModelManager] Purging GPU/RAM allocations...")
+        self.model = None
+        self.tokenizer = None
+        self.processor = None
+        self.model_id = None
+        self.is_vision = False
+        
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            print("[ModelManager] PyTorch CUDA cache empty.")
+            
+        self.status = "No model loaded"
+        self.loading_progress = 0
+        self.loading_speed = ""
+        self.error_message = None
+        self.last_tokens_per_sec = 0.0
+        print("[ModelManager] Unload complete.")
+
+    def load_model(self, model_id: str, hf_token: Optional[str] = None):
+        with self.lock:
+            try:
+                # Normalize empty string tokens to None to prevent Hugging Face Hub rejection
+                if hf_token is not None:
+                    hf_token = hf_token.strip()
+                    if not hf_token:
+                        hf_token = None
+                
+                if hf_token:
+                    os.environ["HF_TOKEN"] = hf_token
+                else:
+                    os.environ.pop("HF_TOKEN", None)
+
+                self.status = f"Preparing model '{model_id}'..."
+                self.loading_progress = 0
+                self.loading_speed = ""
+                self.error_message = None
+                
+                self.model = None
+                self.tokenizer = None
+                self.processor = None
+                self.is_vision = False
+                gc.collect()
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                
+                print(f"[ModelManager] Querying config for '{model_id}'...")
+                from transformers import AutoConfig
+                config = AutoConfig.from_pretrained(model_id, trust_remote_code=True, token=hf_token)
+                
+                model_type = getattr(config, "model_type", "").lower()
+                is_vl = any(vt in model_type for vt in ["vision", "vl", "mllama", "llava", "paligemma", "internvl"])
+                name_vl = any(vt in model_id.lower() for vt in ["vision", "-vl-", "llava", "paligemma"])
+                self.is_vision = is_vl or name_vl
+                print(f"[ModelManager] Model is Multimodal/Vision: {self.is_vision} (Type: {model_type})")
+                
+                # Check for pre-existing quantization in model config
+                has_pre_quant = False
+                config_dict = config.to_dict() if hasattr(config, "to_dict") else {}
+                if "quantization_config" in config_dict:
+                    has_pre_quant = True
+                    print(f"[ModelManager] Model is pre-quantized (found 'quantization_config' in config). Bypassing BitsAndBytesConfig...")
+
+                import tqdm
+                import tqdm.auto as tqdm_auto
+                
+                orig_tqdm = tqdm.tqdm
+                orig_auto_tqdm = tqdm_auto.tqdm
+                
+                try:
+                    tqdm.tqdm = InterceptTqdm
+                    tqdm_auto.tqdm = InterceptTqdm
+                    
+                    print(f"[ModelManager] Downloading/Verifying repository for '{model_id}'...")
+                    from huggingface_hub import snapshot_download
+                    local_dir = snapshot_download(
+                        repo_id=model_id,
+                        allow_patterns=["*.json", "*.bin", "*.safetensors", "*.model", "*.txt", "*.py"],
+                        ignore_patterns=["*.msgpack", "*.h5", "*.ot"],
+                        resume_download=True,
+                        token=hf_token
+                    )
+                    
+                    self.status = f"Loading model weights into memory..."
+                    print(f"[ModelManager] Loading model from {local_dir}...")
+                    
+                    from transformers import AutoTokenizer, AutoModelForCausalLM, AutoProcessor
+                    
+                    if self.is_vision:
+                        try:
+                            self.processor = AutoProcessor.from_pretrained(local_dir, trust_remote_code=True)
+                        except Exception as e:
+                            print(f"[ModelManager Warning] Could not load AutoProcessor: {e}. Falling back to standard tokenizer.")
+                            self.tokenizer = AutoTokenizer.from_pretrained(local_dir, trust_remote_code=True)
+                    else:
+                        self.tokenizer = AutoTokenizer.from_pretrained(local_dir, trust_remote_code=True)
+                        if self.tokenizer.pad_token is None:
+                            self.tokenizer.pad_token = self.tokenizer.eos_token
+                    
+                    if torch.cuda.is_available():
+                        if has_pre_quant:
+                            print("[ModelManager] Loading pre-quantized model directly on GPU...")
+                            try:
+                                self.model = AutoModelForCausalLM.from_pretrained(
+                                    local_dir,
+                                    device_map="auto",
+                                    trust_remote_code=True
+                                )
+                            except Exception as p_err:
+                                print(f"[ModelManager Warning] Loading pre-quantized model failed: {p_err}")
+                                print("[ModelManager] Retrying model load without device_map...")
+                                self.model = AutoModelForCausalLM.from_pretrained(
+                                    local_dir,
+                                    trust_remote_code=True
+                                )
+                        else:
+                            print("[ModelManager] CUDA available. Attempting 4-bit BitsAndBytes quantization...")
+                            try:
+                                from transformers import BitsAndBytesConfig
+                                quant_config = BitsAndBytesConfig(
+                                    load_in_4bit=True,
+                                    bnb_4bit_quant_type="nf4",
+                                    bnb_4bit_use_double_quant=True,
+                                    bnb_4bit_compute_dtype=torch.float16
+                                )
+                                
+                                self.model = AutoModelForCausalLM.from_pretrained(
+                                    local_dir,
+                                    quantization_config=quant_config,
+                                    device_map="auto",
+                                    trust_remote_code=True
+                                )
+                            except Exception as q_err:
+                                print(f"[ModelManager Warning] 4-bit Quantization failed: {q_err}")
+                                print("[ModelManager] Loading model in half-precision 16-bit...")
+                                self.model = AutoModelForCausalLM.from_pretrained(
+                                    local_dir,
+                                    device_map="auto",
+                                    torch_dtype=torch.float16,
+                                    trust_remote_code=True
+                                )
+                    else:
+                        print("[ModelManager] GPU not found. Loading model on CPU (Un-quantized, slow)...")
+                        self.model = AutoModelForCausalLM.from_pretrained(
+                            local_dir,
+                            device_map="cpu",
+                            trust_remote_code=True
+                        )
+                    
+                    self.model_id = model_id
+                    self.status = "Ready"
+                    self.loading_progress = 100
+                    print(f"[ModelManager] Model '{model_id}' successfully loaded.")
+                    return True
+                finally:
+                    tqdm.tqdm = orig_tqdm
+                    tqdm_auto.tqdm = orig_auto_tqdm
+            except Exception as e:
+                self.status = "Error loading model"
+                self.error_message = str(e)
+                print(f"[ModelManager Error] Load sequence failed: {e}")
+                return False
+
+    def generate_stream(self, messages: List[Dict[str, Any]], temperature: float = 0.7, top_p: float = 0.9, max_tokens: int = 512, agent_mode: bool = False):
+        if not self.model:
+            yield "Error: No model is currently loaded. Please load a model first."
+            return
+
+        # Keep a local copy of message history to append tool outputs dynamically
+        active_messages = list(messages)
+        
+        # Inject tool schemas if agent mode is enabled
+        if agent_mode:
+            try:
+                from mcp_client import get_all_external_tools
+                ext_tools = get_all_external_tools() or []
+                tools = BUILTIN_TOOLS + ext_tools
+                
+                # Locate system prompt message
+                system_msg = None
+                for msg in active_messages:
+                    if msg["role"] == "system":
+                        system_msg = msg
+                        break
+                
+                if not system_msg:
+                    system_msg = {"role": "system", "content": ""}
+                    active_messages.insert(0, system_msg)
+                    
+                # Optimized, token-efficient system instruction to prevent VRAM and context bloat
+                tool_instructions = (
+                    "\n\n[Agent Mode Enabled]\n"
+                    "You can call tools to answer queries. To invoke a tool, output a single JSON block:\n"
+                    "```json\n"
+                    "{\n"
+                    "  \"tool\": \"tool_name\",\n"
+                    "  \"arguments\": { ... }\n"
+                    "}\n"
+                    "```\n"
+                    "Output nothing else when calling tools. Wait for output.\n"
+                    f"Available tools:\n{json.dumps(tools, indent=1)}\n\n"
+                )
+                
+                if isinstance(system_msg["content"], str):
+                    system_msg["content"] += tool_instructions
+                else:
+                    system_msg["content"] = str(system_msg["content"]) + tool_instructions
+            except Exception as e:
+                print(f"[ModelManager Agent Warning] Tool injection failed: {e}")
+                
+        # Run inference ReAct loop
+        for step in range(5):
+            generated_text = ""
+            
+            # Execute standard generation step
+            step_generator = self._execute_inference_step(
+                active_messages, 
+                temperature, 
+                top_p, 
+                max_tokens
+            )
+            
+            for chunk in step_generator:
+                if chunk.startswith("Error:") or chunk.startswith("\n[Generation Error"):
+                    yield chunk
+                    return
+                generated_text += chunk
+                yield chunk
+ 
+            # Parse for tool calls
+            tool_call = parse_tool_call_json(generated_text)
+            if agent_mode and tool_call:
+                tool_name = tool_call.get("tool")
+                tool_args = tool_call.get("arguments", {})
+                
+                yield f"\n\n⚙️ **[Calling Tool: `{tool_name}` with arguments {json.dumps(tool_args)}]**\n"
+                
+                try:
+                    if tool_name == "web_search":
+                        query = tool_args.get("query", "")
+                        tool_result = builtin_web_search(query)
+                    else:
+                        from mcp_client import execute_external_tool
+                        tool_result = execute_external_tool(tool_name, tool_args)
+                    
+                    result_str = json.dumps(tool_result, indent=2)
+                    
+                    yield f"📊 **[Tool Result: `{result_str}`]**\n\n"
+                    
+                    # Log histories
+                    active_messages.append({"role": "assistant", "content": generated_text})
+                    active_messages.append({"role": "user", "content": f"Tool output from '{tool_name}': {result_str}"})
+                    continue
+                except Exception as tool_err:
+                    yield f"\n❌ **[Tool Execution Failed: {str(tool_err)}]**\n"
+                    break
+            else:
+                break
+
+    def _execute_inference_step(self, messages: List[Dict[str, Any]], temperature: float, top_p: float, max_tokens: int):
+        with self.lock:
+            try:
+                processed_messages = []
+                image_inputs = []
+                
+                for msg in messages:
+                    role = msg["role"]
+                    content = msg["content"]
+                    
+                    if isinstance(content, list):
+                        new_content = []
+                        for part in content:
+                            if part.get("type") == "text":
+                                new_content.append({"type": "text", "text": part["text"]})
+                            elif part.get("type") == "image_url":
+                                base64_data = part["image_url"]["url"]
+                                try:
+                                    pil_img = decode_base64_image(base64_data)
+                                    image_inputs.append(pil_img)
+                                    new_content.append({"type": "image", "image": pil_img})
+                                except Exception as e:
+                                    print(f"[ModelManager] Image decoding failed: {e}")
+                        processed_messages.append({"role": role, "content": new_content})
+                    else:
+                        processed_messages.append({"role": role, "content": content})
+                
+                if len(image_inputs) > 0 and not self.is_vision:
+                    text_only_messages = []
+                    for msg in messages:
+                        if isinstance(msg["content"], list):
+                            txt = "".join(part["text"] for part in msg["content"] if part.get("type") == "text")
+                            text_only_messages.append({"role": msg["role"], "content": txt})
+                        else:
+                            text_only_messages.append(msg)
+                    processed_messages = text_only_messages
+                    image_inputs = []
+
+                if self.is_vision and len(image_inputs) > 0 and self.processor:
+                    prompt = self.processor.apply_chat_template(
+                        processed_messages, 
+                        tokenize=False, 
+                        add_generation_prompt=True
+                    )
+                    inputs = self.processor(
+                        text=[prompt], 
+                        images=image_inputs, 
+                        padding=True, 
+                        return_tensors="pt"
+                    ).to(self.model.device)
+                else:
+                    text_only_messages = []
+                    for msg in processed_messages:
+                        if isinstance(msg["content"], list):
+                            txt = "".join(part["text"] for part in msg["content"] if part.get("type") == "text")
+                            text_only_messages.append({"role": msg["role"], "content": txt})
+                        else:
+                            text_only_messages.append(msg)
+                    
+                    tokenizer_obj = self.tokenizer if self.tokenizer else self.processor.tokenizer
+                    prompt = tokenizer_obj.apply_chat_template(
+                        text_only_messages, 
+                        tokenize=False, 
+                        add_generation_prompt=True
+                    )
+                    inputs = tokenizer_obj(prompt, return_tensors="pt").to(self.model.device)
+                
+                from transformers import TextIteratorStreamer
+                from threading import Thread
+                
+                tokenizer_for_streamer = self.tokenizer if self.tokenizer else self.processor.tokenizer
+                streamer = TextIteratorStreamer(tokenizer_for_streamer, skip_prompt=True, skip_special_tokens=True)
+                
+                generation_kwargs = dict(
+                    **inputs,
+                    streamer=streamer,
+                    max_new_tokens=max_tokens,
+                    do_sample=temperature > 0.0,
+                    temperature=temperature if temperature > 0.0 else 1.0,
+                    top_p=top_p
+                )
+                
+                thread_exceptions = []
+                
+                def safe_generate():
+                    try:
+                        self.model.generate(**generation_kwargs)
+                    except Exception as t_err:
+                        print(f"[ModelManager Error] Generation thread exception: {t_err}")
+                        thread_exceptions.append(t_err)
+                        streamer.end()
+                
+                thread = Thread(target=safe_generate, daemon=True)
+                thread.start()
+                
+                token_count = 0
+                start_time = time.time()
+                
+                for token_text in streamer:
+                    if not token_text:
+                        continue
+                    token_count += 1
+                    elapsed = time.time() - start_time
+                    if elapsed > 0:
+                        self.last_tokens_per_sec = round(token_count / elapsed, 2)
+                    yield token_text
+                    
+                if thread_exceptions:
+                    raise thread_exceptions[0]
+                    
+                elapsed = time.time() - start_time
+                if elapsed > 0:
+                    self.last_tokens_per_sec = round(token_count / elapsed, 2)
+                    
+            except Exception as e:
+                yield f"\n[Generation Error: {str(e)}]"
+
+def get_cached_models() -> list:
+    try:
+        from huggingface_hub import scan_cache_dir
+        cache_info = scan_cache_dir()
+        models = []
+        for repo in cache_info.repos:
+            # We want to format size in GB
+            size_gb = repo.size_on_disk / (1024 ** 3)
+            models.append({
+                "repo_id": repo.repo_id,
+                "size_gb": round(size_gb, 2),
+                "repo_path": repo.repo_path,
+                "nb_files": repo.nb_files
+            })
+        return models
+    except Exception as e:
+        print(f"[Cache Scanner] Failed to scan HF cache: {e}")
+        return []
+
+def delete_cached_model(repo_id: str) -> bool:
+    try:
+        import shutil
+        from huggingface_hub import scan_cache_dir
+        cache_info = scan_cache_dir()
+        for repo in cache_info.repos:
+            if repo.repo_id == repo_id:
+                print(f"[Cache Scanner] Deleting directory recursively: {repo.repo_path}")
+                shutil.rmtree(repo.repo_path)
+                return True
+        return False
+    except Exception as e:
+        print(f"[Cache Scanner] Failed to delete HF cached model {repo_id}: {e}")
+        return False
