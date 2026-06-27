@@ -501,6 +501,28 @@ class ModelManager:
                     img_data = base64.b64decode(image)
                     pil_image = Image.open(BytesIO(img_data)).convert("RGB")
                     
+                    # Auto-resize to a friendly resolution (max 704px on longest edge) and align to multiples of 16
+                    max_size = 704
+                    w, h = pil_image.size
+                    if w > max_size or h > max_size:
+                        if w > h:
+                            new_w = max_size
+                            new_h = int(h * (max_size / w))
+                        else:
+                            new_h = max_size
+                            new_w = int(w * (max_size / h))
+                    else:
+                        new_w, new_h = w, h
+                        
+                    new_w = (new_w // 16) * 16
+                    new_h = (new_h // 16) * 16
+                    new_w = max(new_w, 16)
+                    new_h = max(new_h, 16)
+                    
+                    if (new_w, new_h) != (w, h):
+                        pil_image = pil_image.resize((new_w, new_h), Image.Resampling.LANCZOS)
+                        print(f"[ModelManager] Auto-resized input image from {w}x{h} to {new_w}x{new_h} to fit model constraints.")
+                    
                     import inspect
                     sig = inspect.signature(self.image_pipeline.__call__)
                     if "image" in sig.parameters:
@@ -509,6 +531,11 @@ class ModelManager:
                         kwargs["init_image"] = pil_image
                     else:
                         print("[ModelManager Warning] Current video pipeline does not accept 'image' or 'init_image'. Ignoring input image.")
+                        
+                    if "width" in sig.parameters:
+                        kwargs["width"] = new_w
+                    if "height" in sig.parameters:
+                        kwargs["height"] = new_h
                     
                 if progress_callback or check_cancelled:
                     import inspect
