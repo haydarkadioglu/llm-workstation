@@ -182,7 +182,14 @@ class SseMcpClient:
     def _read_sse(self):
         try:
             headers = {'User-Agent': 'Mozilla/5.0'}
-            response = requests.get(self.url, headers=headers, stream=True, timeout=30)
+            try:
+                response = requests.get(self.url, headers=headers, stream=True, timeout=30)
+                if response.status_code in [400, 405]:
+                    print(f"[SSE Client] GET returned status {response.status_code}, falling back to POST...")
+                    response = requests.post(self.url, headers=headers, stream=True, timeout=30)
+            except Exception as get_err:
+                print(f"[SSE Client Warning] GET request failed: {get_err}. Trying POST fallback...")
+                response = requests.post(self.url, headers=headers, stream=True, timeout=30)
             
             current_event = None
             for line in response.iter_lines():
