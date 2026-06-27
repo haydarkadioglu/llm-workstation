@@ -54,6 +54,7 @@ app.add_middleware(
 class ModelLoadPayload(BaseModel):
     model_id: str
     hf_token: Optional[str] = None
+    model_type: Optional[str] = "text"
 
 class ChatMessage(BaseModel):
     role: str
@@ -99,7 +100,7 @@ def get_telemetry():
 @app.post("/api/model/load")
 def load_model_endpoint(payload: ModelLoadPayload):
     def bg_load():
-        model_manager.load_model(payload.model_id, payload.hf_token)
+        model_manager.load_model(payload.model_id, payload.hf_token, payload.model_type)
         
     threading.Thread(target=bg_load, daemon=True).start()
     return {"message": f"Load process initiated for '{payload.model_id}'."}
@@ -108,6 +109,39 @@ def load_model_endpoint(payload: ModelLoadPayload):
 def unload_model_endpoint():
     model_manager.unload_current_model()
     return {"message": "Model unloaded and VRAM purged successfully."}
+
+class ImageGeneratePayload(BaseModel):
+    prompt: str
+    negative_prompt: Optional[str] = ""
+    steps: Optional[int] = 25
+    guidance_scale: Optional[float] = 7.5
+    width: Optional[int] = 512
+    height: Optional[int] = 512
+
+@app.post("/api/image/generate")
+def generate_image_endpoint(payload: ImageGeneratePayload):
+    if not model_manager.image_pipeline:
+        raise HTTPException(status_code=400, detail="No diffusion model loaded. Please load an image model first.")
+    
+    try:
+        image = model_manager.generate_image(
+            prompt=payload.prompt,
+            negative_prompt=payload.negative_prompt,
+            steps=payload.steps,
+            guidance_scale=payload.guidance_scale,
+            width=payload.width,
+            height=payload.height
+        )
+        
+        import io
+        import base64
+        buffered = io.BytesIO()
+        image.save(buffered, format="PNG")
+        img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
+        
+        return {"image_base64": f"data:image/png;base64,{img_str}"}
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=str(err))
 
 @app.post("/api/chat")
 async def chat_endpoint(payload: ChatPayload):

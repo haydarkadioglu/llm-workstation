@@ -48,6 +48,9 @@
                 <a href="#chat" id="chatTab" class="px-3.5 py-1.5 rounded-lg text-sm font-medium transition duration-200">
                     <i class="fa-regular fa-comments mr-1.5"></i>Chat
                 </a>
+                <a href="#image" id="imageTab" class="px-3.5 py-1.5 rounded-lg text-sm font-medium transition duration-200">
+                    <i class="fa-regular fa-image mr-1.5"></i>Image Models
+                </a>
                 <a href="#dashboard" id="dashboardTab" class="px-3.5 py-1.5 rounded-lg text-sm font-medium transition duration-200">
                     <i class="fa-solid fa-chart-line mr-1.5"></i>Dashboard
                 </a>
@@ -373,6 +376,149 @@
                                 <input type="checkbox" id="agentToggle" class="sr-only peer" onchange="saveSettings()" checked>
                                 <div class="w-9 h-5 bg-slate-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-300 after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
                             </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- PAGE 1B: IMAGE MODELS VIEW -->
+            <div id="imageView" class="hidden flex-1 flex h-full overflow-hidden">
+                <!-- Left Sidebar for Image Model Control & Params -->
+                <aside class="w-80 border-r border-slate-800 bg-[#0c101d] flex flex-col shrink-0">
+                    <div class="p-5 border-b border-slate-800 space-y-1">
+                        <h3 class="text-sm font-semibold tracking-wide text-slate-200">IMAGE MODEL MANAGER</h3>
+                        <p class="text-[10px] text-slate-400">Load and configure Stable Diffusion models.</p>
+                    </div>
+                    
+                    <div class="flex-1 overflow-y-auto p-5 space-y-6">
+                        <!-- Model Loader Form -->
+                        <div class="space-y-3.5">
+                            <label class="text-[11px] font-bold text-slate-400 tracking-wider block font-mono font-bold">HUGGING FACE ID:</label>
+                            <input type="text" id="imageModelInput" placeholder="e.g. runwayml/stable-diffusion-v1-5" class="w-full bg-[#131929]/50 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 font-mono transition">
+                            
+                            <label class="text-[11px] font-bold text-slate-400 tracking-wider block font-mono font-bold">HF TOKEN (OPTIONAL):</label>
+                            <input type="password" id="imageModelToken" placeholder="gated access token" class="w-full bg-[#131929]/50 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 font-mono transition">
+                            
+                            <button onclick="triggerImageModelLoad()" class="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold tracking-wide flex items-center justify-center gap-1.5 shadow-md shadow-indigo-600/10 active:scale-[0.98] transition">
+                                <i class="fa-solid fa-play"></i>Load Image Model
+                            </button>
+                        </div>
+                        
+                        <!-- Presets -->
+                        <div class="space-y-3">
+                            <h4 class="text-[10px] font-bold tracking-wider text-slate-400 font-mono uppercase">Quick Presets</h4>
+                            <div class="grid grid-cols-1 gap-2">
+                                <button onclick="selectImagePreset('runwayml/stable-diffusion-v1-5')" class="p-2 text-left bg-[#131929]/30 border border-slate-800 rounded-xl text-xs hover:border-slate-700 transition">
+                                    <p class="font-mono text-slate-300">Stable Diffusion 1.5</p>
+                                    <span class="text-[9px] text-slate-500 font-mono">runwayml/stable-diffusion-v1-5</span>
+                                </button>
+                                <button onclick="selectImagePreset('stabilityai/stable-diffusion-2-1')" class="p-2 text-left bg-[#131929]/30 border border-slate-800 rounded-xl text-xs hover:border-slate-700 transition">
+                                    <p class="font-mono text-slate-300">Stable Diffusion 2.1</p>
+                                    <span class="text-[9px] text-slate-500 font-mono">stabilityai/stable-diffusion-2-1</span>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Parameters Divider -->
+                        <div class="border-t border-slate-800/80 pt-5 space-y-4">
+                            <h4 class="text-[10px] font-bold tracking-wider text-slate-400 font-mono uppercase">PARAMETERS</h4>
+                            
+                            <!-- Steps -->
+                            <div class="space-y-1.5">
+                                <div class="flex justify-between items-center text-[10px] font-mono">
+                                    <span class="text-slate-400">Inference Steps:</span>
+                                    <span id="stepsVal" class="text-indigo-400 font-bold">25</span>
+                                </div>
+                                <input type="range" id="stepsInput" min="10" max="50" value="25" oninput="document.getElementById('stepsVal').innerText = this.value" class="w-full accent-indigo-500 h-1 bg-slate-800 rounded-lg cursor-pointer">
+                            </div>
+                            
+                            <!-- Guidance Scale -->
+                            <div class="space-y-1.5">
+                                <div class="flex justify-between items-center text-[10px] font-mono">
+                                    <span class="text-slate-400">Guidance Scale (CFG):</span>
+                                    <span id="cfgVal" class="text-indigo-400 font-bold">7.5</span>
+                                </div>
+                                <input type="range" id="cfgInput" min="1" max="20" step="0.5" value="7.5" oninput="document.getElementById('cfgVal').innerText = this.value" class="w-full accent-indigo-500 h-1 bg-slate-800 rounded-lg cursor-pointer">
+                            </div>
+                            
+                            <!-- Dimensions -->
+                            <div class="grid grid-cols-2 gap-3">
+                                <div class="space-y-1.5">
+                                    <span class="text-[10px] font-mono text-slate-400">Width:</span>
+                                    <select id="widthInput" class="w-full bg-[#131929]/50 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-300 focus:outline-none font-mono">
+                                        <option value="256">256 px</option>
+                                        <option value="512" selected>512 px</option>
+                                        <option value="768">768 px</option>
+                                        <option value="1024">1024 px</option>
+                                    </select>
+                                </div>
+                                <div class="space-y-1.5">
+                                    <span class="text-[10px] font-mono text-slate-400">Height:</span>
+                                    <select id="heightInput" class="w-full bg-[#131929]/50 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-300 focus:outline-none font-mono">
+                                        <option value="256">256 px</option>
+                                        <option value="512" selected>512 px</option>
+                                        <option value="768">768 px</option>
+                                        <option value="1024">1024 px</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </aside>
+                
+                <!-- Main Playground -->
+                <div class="flex-1 flex flex-col h-full bg-[#0B0F19] overflow-y-auto p-6 space-y-6">
+                    <!-- Top controls / Prompt panel -->
+                    <div class="bg-[#0D1322]/60 border border-slate-800/80 rounded-2xl p-5 space-y-4">
+                        <div class="space-y-2">
+                            <label class="text-[10px] font-bold tracking-wider text-slate-400 font-mono uppercase block">Prompt (What you want to see)</label>
+                            <textarea id="imagePrompt" rows="3" placeholder="A futuristic cyberpunk workstation with neon terminal windows, highly detailed digital art..." class="w-full bg-[#131929]/40 border border-slate-800/80 rounded-xl px-4 py-3 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition resize-none"></textarea>
+                        </div>
+                        
+                        <div class="space-y-2">
+                            <label class="text-[10px] font-bold tracking-wider text-slate-400 font-mono uppercase block">Negative Prompt (What to exclude)</label>
+                            <input type="text" id="imageNegativePrompt" placeholder="blurry, low quality, distorted, extra limbs, ugly, text, watermark" class="w-full bg-[#131929]/40 border border-slate-800/80 rounded-xl px-4 py-3 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition">
+                        </div>
+                        
+                        <div class="flex justify-end pt-1">
+                            <button onclick="generateImage()" id="btnGenerateImage" class="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-xl text-xs font-bold tracking-wider shadow-lg shadow-indigo-600/10 flex items-center gap-2 active:scale-[0.98] transition">
+                                <i class="fa-regular fa-image"></i>Generate Image
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Preview and history -->
+                    <div class="flex-1 flex flex-col md:flex-row gap-6 min-h-[400px]">
+                        <!-- Left: Live Preview Frame -->
+                        <div class="flex-1 bg-[#0d1322]/40 border border-slate-800/60 rounded-2xl flex flex-col items-center justify-center p-6 relative overflow-hidden min-h-[350px]">
+                            <!-- Loading overlay -->
+                            <div id="imageLoader" class="hidden absolute inset-0 bg-[#0b0f19]/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center gap-3">
+                                <div class="w-8 h-8 rounded-full border-2 border-indigo-500/20 border-t-indigo-500 animate-spin"></div>
+                                <p class="text-xs text-slate-400 font-mono">Generating image...</p>
+                            </div>
+                            
+                            <!-- Result Image -->
+                            <div id="imagePlaceholder" class="text-center space-y-3">
+                                <i class="fa-regular fa-images text-5xl text-slate-600"></i>
+                                <p class="text-xs text-slate-500">Your generated image will appear here.</p>
+                            </div>
+                            <img id="generatedImage" class="hidden max-h-[450px] max-w-full rounded-xl shadow-2xl border border-slate-800/80 object-contain" src="">
+                            
+                            <!-- Action button overlay -->
+                            <div id="imageActions" class="hidden mt-4 flex items-center gap-3">
+                                <a id="btnDownloadImage" href="#" download="generated-image.png" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition">
+                                    <i class="fa-solid fa-download"></i>Download PNG
+                                </a>
+                            </div>
+                        </div>
+                        
+                        <!-- Right: History Panel -->
+                        <div class="w-full md:w-80 bg-[#0d1322]/20 border border-slate-800/40 rounded-2xl p-5 flex flex-col min-h-[250px]">
+                            <h4 class="text-xs font-bold tracking-wider text-slate-400 font-mono uppercase mb-4">Session Gallery</h4>
+                            <div id="imageHistory" class="flex-1 grid grid-cols-2 md:grid-cols-1 gap-3 overflow-y-auto max-h-[400px] pr-1">
+                                <!-- Empty state -->
+                                <p id="galleryEmptyState" class="text-[10px] text-slate-500 italic block py-2 text-center col-span-2 md:col-span-1">No images generated yet.</p>
+                            </div>
                         </div>
                     </div>
                 </div>

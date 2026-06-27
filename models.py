@@ -174,6 +174,7 @@ class ModelManager:
         self.model = None
         self.tokenizer = None
         self.processor = None
+        self.image_pipeline = None
         self.model_id = None
         self.is_vision = False
         self.status = "No model loaded"
@@ -190,6 +191,7 @@ class ModelManager:
         self.model = None
         self.tokenizer = None
         self.processor = None
+        self.image_pipeline = None
         self.model_id = None
         self.is_vision = False
         
@@ -205,7 +207,7 @@ class ModelManager:
         self.last_tokens_per_sec = 0.0
         print("[ModelManager] Unload complete.")
 
-    def load_model(self, model_id: str, hf_token: Optional[str] = None):
+    def load_model(self, model_id: str, hf_token: Optional[str] = None, model_type: str = "text"):
         with self.lock:
             try:
                 # Normalize empty string tokens to None to prevent Hugging Face Hub rejection
@@ -219,10 +221,39 @@ class ModelManager:
                 else:
                     os.environ.pop("HF_TOKEN", None)
 
+                self.unload_current_model()
+
                 self.status = f"Preparing model '{model_id}'..."
                 self.loading_progress = 0
                 self.loading_speed = ""
                 self.error_message = None
+                
+                if model_type == "image":
+                    self.status = "Downloading/Verifying repository..."
+                    try:
+                        tqdm.tqdm.__init__ = _patched_tqdm_init
+                        tqdm.tqdm.update = _patched_tqdm_update
+                        
+                        import diffusers
+                        print(f"[ModelManager] Loading Stable Diffusion pipeline for '{model_id}'...")
+                        
+                        self.image_pipeline = diffusers.DiffusionPipeline.from_pretrained(
+                            model_id,
+                            torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
+                            use_safetensors=True,
+                            token=hf_token
+                        )
+                        if torch.cuda.is_available():
+                            self.image_pipeline.to("cuda")
+                            
+                        self.model_id = model_id
+                        self.status = "Ready"
+                        self.loading_progress = 100
+                        print(f"[ModelManager] Diffusion pipeline '{model_id}' successfully loaded.")
+                        return True
+                    finally:
+                        tqdm.tqdm.__init__ = _original_tqdm_init
+                        tqdm.tqdm.update = _original_tqdm_update
                 
                 self.model = None
                 self.tokenizer = None
@@ -345,6 +376,23 @@ class ModelManager:
                 self.error_message = str(e)
                 print(f"[ModelManager Error] Load sequence failed: {e}")
                 return False
+
+    def generate_image(self, prompt: str, negative_prompt: str = "", steps: int = 25, guidance_scale: float = 7.5, width: int = 512, height: int = 512):
+        if not self.image_pipeline:
+            raise ValueError("No image pipeline is loaded. Please load a diffusion model first.")
+            
+        with self.lock:
+            import torch
+            with torch.inference_mode():
+                result = self.image_pipeline(
+                    prompt=prompt,
+                    negative_prompt=negative_prompt,
+                    num_inference_steps=steps,
+                    guidance_scale=guidance_scale,
+                    width=width,
+                    height=height
+                )
+                return result.images[0]
 
     def generate_stream(self, messages: List[Dict[str, Any]], temperature: float = 0.7, top_p: float = 0.9, max_tokens: int = 512, agent_mode: bool = False):
         if not self.model:
