@@ -154,11 +154,16 @@ class VideoGeneratePayload(BaseModel):
 video_tasks = {}
 
 def run_video_generation(task_id: str, payload: VideoGeneratePayload):
+    from models import CancellationException
+
     def on_progress(current_step: int, total_steps: int):
         progress_pct = int((current_step / total_steps) * 100)
         video_tasks[task_id]["current_step"] = current_step
         video_tasks[task_id]["total_steps"] = total_steps
         video_tasks[task_id]["progress_pct"] = min(progress_pct, 99)
+
+    def check_cancelled():
+        return video_tasks.get(task_id, {}).get("cancel_requested", False)
 
     try:
         base64_video = model_manager.generate_video(
@@ -168,13 +173,26 @@ def run_video_generation(task_id: str, payload: VideoGeneratePayload):
             frames=payload.frames,
             fps=payload.fps,
             image=payload.image,
-            progress_callback=on_progress
+            progress_callback=on_progress,
+            check_cancelled=check_cancelled
         )
+        # Check one last time before wrapping up
+        if check_cancelled():
+            raise CancellationException("Generation task aborted by user.")
+            
         video_tasks[task_id] = {
             "status": "completed",
             "result": f"data:video/mp4;base64,{base64_video}",
             "progress_pct": 100,
             "current_step": payload.steps,
+            "total_steps": payload.steps
+        }
+    except CancellationException as cancel_err:
+        video_tasks[task_id] = {
+            "status": "failed",
+            "error": "Task cancelled by user.",
+            "progress_pct": 0,
+            "current_step": 0,
             "total_steps": payload.steps
         }
     except Exception as err:
@@ -196,7 +214,8 @@ def generate_video_endpoint(payload: VideoGeneratePayload):
         "status": "processing",
         "progress_pct": 0,
         "current_step": 0,
-        "total_steps": payload.steps
+        "total_steps": payload.steps,
+        "cancel_requested": False
     }
     
     t = threading.Thread(target=run_video_generation, args=(task_id, payload))
@@ -209,6 +228,13 @@ def get_video_status(task_id: str):
     if task_id not in video_tasks:
         raise HTTPException(status_code=404, detail="Task not found.")
     return video_tasks[task_id]
+
+@app.post("/api/video/cancel/{task_id}")
+def cancel_video_task(task_id: str):
+    if task_id not in video_tasks:
+        raise HTTPException(status_code=404, detail="Task not found.")
+    video_tasks[task_id]["cancel_requested"] = True
+    return {"status": "cancel_requested"}
 
 class VideoMergePayload(BaseModel):
     video_base64_list: List[str]

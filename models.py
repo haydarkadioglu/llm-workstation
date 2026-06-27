@@ -16,6 +16,9 @@ except ImportError:
 
 import tqdm
 
+class CancellationException(Exception):
+    pass
+
 # Global reference to hook progress bar tracking
 _global_manager_ref = None
 
@@ -467,7 +470,7 @@ class ModelManager:
                 )
                 return result.images[0]
 
-    def generate_video(self, prompt: str, negative_prompt: str = "", steps: int = 20, frames: int = 16, fps: int = 8, image: str = None, progress_callback = None):
+    def generate_video(self, prompt: str, negative_prompt: str = "", steps: int = 20, frames: int = 16, fps: int = 8, image: str = None, progress_callback = None, check_cancelled = None):
         if not self.image_pipeline:
             raise ValueError("No video pipeline is loaded. Please load a video model first.")
             
@@ -507,17 +510,23 @@ class ModelManager:
                     else:
                         print("[ModelManager Warning] Current video pipeline does not accept 'image' or 'init_image'. Ignoring input image.")
                     
-                if progress_callback:
+                if progress_callback or check_cancelled:
                     import inspect
                     sig = inspect.signature(self.image_pipeline.__call__)
                     if "callback_on_step_end" in sig.parameters:
                         def step_end_callback(pipe, step_index, timestep, callback_kwargs):
-                            progress_callback(step_index + 1, steps)
+                            if check_cancelled and check_cancelled():
+                                raise CancellationException("Generation task aborted by user.")
+                            if progress_callback:
+                                progress_callback(step_index + 1, steps)
                             return callback_kwargs
                         kwargs["callback_on_step_end"] = step_end_callback
                     elif "callback" in sig.parameters:
                         def legacy_callback(step, timestep, latents):
-                            progress_callback(step + 1, steps)
+                            if check_cancelled and check_cancelled():
+                                raise CancellationException("Generation task aborted by user.")
+                            if progress_callback:
+                                progress_callback(step + 1, steps)
                         kwargs["callback"] = legacy_callback
                         kwargs["callback_steps"] = 1
                         

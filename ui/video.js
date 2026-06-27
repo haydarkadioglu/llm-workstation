@@ -1,5 +1,6 @@
 let selectedVideoIndices = [];
 let selectedVideoImageBase64 = null;
+let currentVideoTaskId = null;
 
 function triggerVideoImageUpload() {
     document.getElementById("videoImageInput").click();
@@ -119,6 +120,7 @@ async function generateVideo() {
         if (response.ok) {
             const data = await response.json();
             const taskId = data.task_id;
+            currentVideoTaskId = taskId;
             appendLog(`Video task scheduled (ID: ${taskId}). Polling status...`);
             pollVideoStatus(taskId);
         } else {
@@ -131,6 +133,7 @@ async function generateVideo() {
         loader.classList.add("hidden");
         btnGenerate.disabled = false;
         btnGenerate.innerHTML = `<i class="fa-solid fa-video"></i>Generate Video`;
+        currentVideoTaskId = null;
     }
 }
 
@@ -146,6 +149,12 @@ function pollVideoStatus(taskId) {
     const statusTextEl = document.getElementById("videoLoaderStatusText");
 
     const interval = setInterval(async () => {
+        // If the task was cleared locally (cancelled), stop polling
+        if (currentVideoTaskId !== taskId) {
+            clearInterval(interval);
+            return;
+        }
+
         try {
             const response = await fetch(`/api/video/status/${taskId}`);
             if (!response.ok) {
@@ -153,6 +162,12 @@ function pollVideoStatus(taskId) {
             }
             const data = await response.json();
             
+            // Re-verify task ID context in case user cancelled during fetch network lag
+            if (currentVideoTaskId !== taskId) {
+                clearInterval(interval);
+                return;
+            }
+
             if (data.status === "processing") {
                 const current = data.current_step || 0;
                 const total = data.total_steps || 20;
@@ -181,9 +196,10 @@ function pollVideoStatus(taskId) {
                 loader.classList.add("hidden");
                 btnGenerate.disabled = false;
                 btnGenerate.innerHTML = `<i class="fa-solid fa-video"></i>Generate Video`;
+                currentVideoTaskId = null;
             } else if (data.status === "failed") {
                 clearInterval(interval);
-                throw new Error(data.error);
+                throw new Error(data.error || "Generation pipeline failed.");
             }
         } catch (err) {
             clearInterval(interval);
@@ -193,8 +209,39 @@ function pollVideoStatus(taskId) {
             loader.classList.add("hidden");
             btnGenerate.disabled = false;
             btnGenerate.innerHTML = `<i class="fa-solid fa-video"></i>Generate Video`;
+            currentVideoTaskId = null;
         }
-    }, 2000); // Check status every 2 seconds
+    }, 2000);
+}
+
+async function cancelVideoGeneration() {
+    if (!currentVideoTaskId) return;
+    
+    const taskId = currentVideoTaskId;
+    // Clear token locally immediately to stop UI polling callbacks
+    currentVideoTaskId = null;
+    
+    const btnGenerate = document.getElementById("btnGenerateVideo");
+    const loader = document.getElementById("videoGeneratorLoader");
+    
+    appendLog(`Requesting cancellation for video task ${taskId}...`);
+    showToast("Cancelling video generation...", "info");
+    
+    try {
+        const response = await fetch(`/api/video/cancel/${taskId}`, { method: "POST" });
+        if (response.ok) {
+            appendLog(`Video generation task ${taskId} successfully aborted.`);
+            showToast("Video generation cancelled.", "success");
+        } else {
+            throw new Error("Failed to abort task on server.");
+        }
+    } catch (err) {
+        appendLog(`Error cancelling task on server: ${err.message}`, true);
+    } finally {
+        loader.classList.add("hidden");
+        btnGenerate.disabled = false;
+        btnGenerate.innerHTML = `<i class="fa-solid fa-video"></i>Generate Video`;
+    }
 }
 
 function addToVideoGallery(base64Src, prompt) {
