@@ -713,6 +713,11 @@ async function submitHfSearch() {
     
     try {
         const response = await fetch(`${API_BASE_URL}/api/hf/search?query=${encodeURIComponent(query)}`);
+        if (!response.ok) {
+            let errText = await response.text();
+            console.error("HF Search Error:", errText);
+            throw new Error(response.statusText);
+        }
         const data = await response.json();
         
         document.getElementById('hfRepoLoader').classList.add('hidden');
@@ -743,7 +748,7 @@ async function submitHfSearch() {
         }
     } catch (e) {
         document.getElementById('hfRepoLoader').classList.add('hidden');
-        document.getElementById('hfRepoList').innerHTML = `<div class="text-center py-10 text-red-400 text-xs font-mono">Error fetching models.</div>`;
+        document.getElementById('hfRepoList').innerHTML = `<div class="text-center py-10 text-red-400 text-xs font-mono">Error fetching models: ${e.message}</div>`;
     }
 }
 

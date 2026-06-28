@@ -470,10 +470,10 @@ def hf_search_endpoint(query: Optional[str] = None):
         results = []
         for m in models:
             results.append({
-                "repo_id": m.modelId,
+                "repo_id": getattr(m, "id", getattr(m, "modelId", "")),
                 "downloads": getattr(m, "downloads", 0),
                 "likes": getattr(m, "likes", 0),
-                "author": m.author
+                "author": getattr(m, "author", "")
             })
         return {"models": results}
     except Exception as e:
