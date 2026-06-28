@@ -661,6 +661,30 @@ class ModelManager:
         # Keep a local copy of message history to append tool outputs dynamically
         active_messages = list(messages)
         
+        # Check if the last user message is a simple greeting to bypass Agent Mode
+        if agent_mode:
+            last_user_content = ""
+            for msg in reversed(active_messages):
+                if msg["role"] == "user":
+                    if isinstance(msg["content"], str):
+                        last_user_content = msg["content"].strip().lower()
+                    break
+            
+            # Normalize and identify greetings
+            greetings = {"selam", "merhaba", "hi", "hello", "hey", "nasılsın", "salam", "yo", "hi there", "günaydın", "iyi günler", "iyi akşamlar"}
+            clean_content = re.sub(r'[^\w\s]', '', last_user_content).strip()
+            
+            is_greeting = False
+            if clean_content in greetings or len(clean_content) <= 3:
+                is_greeting = True
+            elif clean_content.startswith(("selam", "merhaba", "nasılsın", "hello", "good morning", "hey")):
+                if len(clean_content) < 20:
+                    is_greeting = True
+                    
+            if is_greeting:
+                print(f"[ModelManager Agent] Detected simple greeting '{clean_content}'. Temporarily disabling Agent Mode for this turn.")
+                agent_mode = False
+        
         # Inject tool schemas if agent mode is enabled
         if agent_mode:
             try:
