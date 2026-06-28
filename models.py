@@ -280,6 +280,8 @@ class ModelManager:
                 if hf_token is not None:
                     hf_token = hf_token.strip()
                     if not hf_token:
+                        hf_token = None
+                        
                 is_gguf_request = model_id.lower().endswith(".gguf")
                 self.is_gguf = is_gguf_request
                 
