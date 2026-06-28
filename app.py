@@ -463,9 +463,9 @@ def hf_search_endpoint(query: Optional[str] = None):
     try:
         api = HfApi()
         if query:
-            models = api.list_models(search=query, filter="gguf", limit=15, sort="downloads", direction=-1)
+            models = api.list_models(search=query, filter="gguf", limit=15, sort="downloads")
         else:
-            models = api.list_models(filter="gguf", limit=15, sort="downloads", direction=-1)
+            models = api.list_models(filter="gguf", limit=15, sort="downloads")
         
         results = []
         for m in models:
