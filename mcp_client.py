@@ -210,10 +210,14 @@ class SseMcpClient:
             if use_post_directly:
                 post_headers = headers.copy()
                 post_headers["Content-Type"] = "application/json"
-                # Send standard JSON-RPC tools/list payload to satisfy body validation checks
                 init_payload = {
                     "jsonrpc": "2.0",
-                    "method": "tools/list",
+                    "method": "initialize",
+                    "params": {
+                        "protocolVersion": "2024-11-05",
+                        "capabilities": {},
+                        "clientInfo": {"name": "llm-workstation-client", "version": "1.0.0"}
+                    },
                     "id": 1
                 }
                 response = requests.post(self.url, headers=post_headers, json=init_payload, stream=True, timeout=10)
@@ -408,7 +412,12 @@ def connect_external_mcp(config: dict) -> dict:
             }
             probe_payload = {
                 "jsonrpc": "2.0",
-                "method": "tools/list",
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": "2024-11-05",
+                    "capabilities": {},
+                    "clientInfo": {"name": "llm-workstation-client", "version": "1.0.0"}
+                },
                 "id": 1
             }
             test_resp = requests.post(url, headers=post_headers, json=probe_payload, timeout=2)
