@@ -83,7 +83,7 @@ class StdioMcpClient:
             print(f"[External MCP Log] {line.strip()}", file=sys.stderr)
         self.process.stderr.close()
         
-    def send_message(self, method: str, params: dict) -> int:
+    def send_message(self, method: str, params: Optional[dict] = None) -> int:
         with self.lock:
             msg_id = self.msg_counter
             self.msg_counter += 1
@@ -91,20 +91,24 @@ class StdioMcpClient:
         payload = {
             "jsonrpc": "2.0",
             "id": msg_id,
-            "method": method,
-            "params": params
+            "method": method
         }
+        if params:
+            payload["params"] = params
+            
         self.pending_responses[msg_id] = queue.Queue()
         self.process.stdin.write(json.dumps(payload) + "\n")
         self.process.stdin.flush()
         return msg_id
         
-    def send_notification(self, method: str, params: dict):
+    def send_notification(self, method: str, params: Optional[dict] = None):
         payload = {
             "jsonrpc": "2.0",
-            "method": method,
-            "params": params
+            "method": method
         }
+        if params:
+            payload["params"] = params
+            
         self.process.stdin.write(json.dumps(payload) + "\n")
         self.process.stdin.flush()
         
@@ -249,7 +253,7 @@ class SseMcpClient:
             print(f"[SSE Client Error] Connection broke: {e}")
             self.active = False
             
-    def send_message(self, method: str, params: dict) -> int:
+    def send_message(self, method: str, params: Optional[dict] = None) -> int:
         with self.lock:
             msg_id = self.msg_counter
             self.msg_counter += 1
@@ -257,21 +261,25 @@ class SseMcpClient:
         payload = {
             "jsonrpc": "2.0",
             "id": msg_id,
-            "method": method,
-            "params": params
+            "method": method
         }
+        if params:
+            payload["params"] = params
+            
         self.pending_responses[msg_id] = queue.Queue()
         
         headers = {"Content-Type": "application/json"}
         requests.post(self.session_url, json=payload, headers=headers, timeout=10)
         return msg_id
         
-    def send_notification(self, method: str, params: dict):
+    def send_notification(self, method: str, params: Optional[dict] = None):
         payload = {
             "jsonrpc": "2.0",
-            "method": method,
-            "params": params
+            "method": method
         }
+        if params:
+            payload["params"] = params
+            
         headers = {"Content-Type": "application/json"}
         requests.post(self.session_url, json=payload, headers=headers, timeout=10)
         
@@ -323,7 +331,7 @@ class HttpMcpClient:
             self.tools = resp_tools["result"].get("tools", [])
             print(f"[MCP HTTP Client] Found tools: {[t['name'] for t in self.tools]}")
             
-    def send_message(self, method: str, params: dict) -> Optional[dict]:
+    def send_message(self, method: str, params: Optional[dict] = None) -> Optional[dict]:
         with self.lock:
             msg_id = self.msg_counter
             self.msg_counter += 1
@@ -331,9 +339,11 @@ class HttpMcpClient:
         payload = {
             "jsonrpc": "2.0",
             "id": msg_id,
-            "method": method,
-            "params": params
+            "method": method
         }
+        if params:
+            payload["params"] = params
+            
         headers = {"Content-Type": "application/json"}
         try:
             response = requests.post(self.url, json=payload, headers=headers, timeout=15)
@@ -345,12 +355,14 @@ class HttpMcpClient:
             print(f"[HTTP Client Error] Request failed: {e}")
         return None
         
-    def send_notification(self, method: str, params: dict):
+    def send_notification(self, method: str, params: Optional[dict] = None):
         payload = {
             "jsonrpc": "2.0",
-            "method": method,
-            "params": params
+            "method": method
         }
+        if params:
+            payload["params"] = params
+            
         headers = {"Content-Type": "application/json"}
         try:
             requests.post(self.url, json=payload, headers=headers, timeout=5)
