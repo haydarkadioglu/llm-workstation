@@ -16,6 +16,65 @@ except ImportError:
 
 import tqdm
 
+# ─── Google Drive Integration ─────────────────────────────────────────────────
+DRIVE_ROOT = "/content/drive/MyDrive"
+DRIVE_LLM_DIR = "/content/drive/MyDrive/LLM-Workstation/models"
+_use_drive = False  # Global toggle — set via set_drive_mode()
+
+def is_drive_mounted() -> bool:
+    """Check if Google Drive is mounted at the standard Colab path."""
+    return os.path.isdir(DRIVE_ROOT)
+
+def set_drive_mode(enabled: bool) -> dict:
+    """Enable or disable Drive-backed model storage.
+    When enabled, sets HF_HOME so all HF downloads go to Drive."""
+    global _use_drive
+    _use_drive = enabled
+    if enabled:
+        if not is_drive_mounted():
+            return {"ok": False, "error": "Google Drive is not mounted. Run drive.mount('/content/drive') in Colab first."}
+        os.makedirs(DRIVE_LLM_DIR, exist_ok=True)
+        os.environ["HF_HOME"] = DRIVE_LLM_DIR
+        os.environ["TRANSFORMERS_CACHE"] = DRIVE_LLM_DIR
+        print(f"[Drive] Drive mode ENABLED. Cache dir: {DRIVE_LLM_DIR}")
+        return {"ok": True, "drive_path": DRIVE_LLM_DIR}
+    else:
+        os.environ.pop("HF_HOME", None)
+        os.environ.pop("TRANSFORMERS_CACHE", None)
+        print("[Drive] Drive mode DISABLED. Using default HF cache.")
+        return {"ok": True, "drive_path": None}
+
+def get_drive_status() -> dict:
+    """Return current Drive state for the UI."""
+    mounted = is_drive_mounted()
+    cached = get_drive_cached_models() if mounted and _use_drive else []
+    return {
+        "mounted": mounted,
+        "drive_mode": _use_drive,
+        "drive_path": DRIVE_LLM_DIR if _use_drive else None,
+        "cached_models": cached,
+    }
+
+def get_drive_cached_models() -> list:
+    """Scan the Drive LLM folder and return list of HF model IDs found."""
+    if not is_drive_mounted() or not os.path.isdir(DRIVE_LLM_DIR):
+        return []
+    results = []
+    # HF cache layout: models--org--reponame/snapshots/<hash>/
+    for entry in os.scandir(DRIVE_LLM_DIR):
+        if not entry.is_dir():
+            continue
+        name = entry.name
+        if name.startswith("models--"):
+            # Standard HF cache format: models--org--reponame
+            hf_id = name[len("models--"):].replace("--", "/", 1)
+            results.append(hf_id)
+        elif os.path.isfile(os.path.join(entry.path, "config.json")):
+            # Flat download style
+            results.append(name)
+    return results
+# ──────────────────────────────────────────────────────────────────────────────
+
 class CancellationException(Exception):
     pass
 
@@ -363,10 +422,12 @@ class ModelManager:
                     tqdm.tqdm.__init__ = _patched_tqdm_init
                     tqdm.tqdm.update = _patched_tqdm_update
                     
-                    print(f"[ModelManager] Downloading/Verifying repository for '{model_id}'...")
+                    print(f"[ModelManager] Downloading/Verifying repository for '{model_id}'...{'  [Drive mode]' if _use_drive and is_drive_mounted() else ''}")
                     from huggingface_hub import snapshot_download
+                    _drive_cache = DRIVE_LLM_DIR if _use_drive and is_drive_mounted() else None
                     local_dir = snapshot_download(
                         repo_id=model_id,
+                        cache_dir=_drive_cache,
                         allow_patterns=["*.json", "*.bin", "*.safetensors", "*.model", "*.txt", "*.py"],
                         ignore_patterns=["*.msgpack", "*.h5", "*.ot"],
                         resume_download=True,

@@ -131,6 +131,7 @@ document.addEventListener("DOMContentLoaded", () => {
     bindSettingListeners();
     fetchConnectedClients();
     fetchCachedModels();
+    fetchDriveStatus();
     startTelemetry();
     
     window.addEventListener('resize', () => {

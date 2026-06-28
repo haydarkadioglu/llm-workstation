@@ -583,3 +583,154 @@ async function disconnectExternalMcpServer(connId) {
         appendLog(`Disconnect failed: ${err.message}`, true);
     }
 }
+
+// ─── Google Drive Integration ─────────────────────────────────────────────────
+
+async function fetchDriveStatus() {
+    try {
+        const resp = await fetch("/api/drive/status");
+        const data = await resp.json();
+        updateDriveBadges(data);
+        applyDriveStatusToUI(data);
+    } catch (err) {
+        // Non-critical, Drive may not be available
+    }
+}
+
+function updateDriveBadges(data) {
+    // Chat header badge
+    const badge = document.getElementById("driveChatBadge");
+    const dot   = document.getElementById("driveChatBadgeDot");
+    const label = document.getElementById("driveChatBadgeLabel");
+    if (!badge) return;
+
+    if (!data.mounted) {
+        badge.className = "flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800/30 border border-slate-800 text-xs text-slate-500 font-mono";
+        dot.className   = "w-1.5 h-1.5 rounded-full bg-slate-600";
+        label.textContent = "Drive: Not Mounted";
+    } else if (!data.drive_mode) {
+        badge.className = "flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-yellow-950/20 border border-yellow-700/30 text-xs text-yellow-600 font-mono";
+        dot.className   = "w-1.5 h-1.5 rounded-full bg-yellow-600";
+        label.textContent = "Drive: Mounted";
+    } else {
+        const count = data.cached_models ? data.cached_models.length : 0;
+        badge.className = "flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-yellow-950/30 border border-yellow-500/40 text-xs text-yellow-400 font-mono";
+        dot.className   = "w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse";
+        label.textContent = `Drive: ${count} model${count !== 1 ? "s" : ""}`;
+    }
+
+    // Settings page badge
+    const settingsDot   = document.getElementById("driveMountDot");
+    const settingsLabel = document.getElementById("driveMountLabel");
+    const settingsBadge = document.getElementById("driveMountBadge");
+    if (settingsDot && settingsLabel && settingsBadge) {
+        if (data.mounted) {
+            settingsBadge.className = "flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-950/30 border border-emerald-700/40 text-[10px] font-mono text-emerald-400";
+            settingsDot.className   = "w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse";
+            settingsLabel.textContent = "Drive Mounted";
+        } else {
+            settingsBadge.className = "flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-slate-800/60 border border-slate-700 text-[10px] font-mono text-slate-500";
+            settingsDot.className   = "w-1.5 h-1.5 rounded-full bg-slate-600";
+            settingsLabel.textContent = "Drive Not Found";
+        }
+    }
+}
+
+function applyDriveStatusToUI(data) {
+    const toggle = document.getElementById("driveModeToggle");
+    const pathRow = document.getElementById("drivePathRow");
+    const cachedSection = document.getElementById("driveCachedSection");
+
+    if (toggle) {
+        toggle.disabled = !data.mounted;
+        toggle.checked  = data.drive_mode;
+    }
+    if (pathRow) {
+        if (data.drive_mode && data.drive_path) {
+            pathRow.classList.remove("hidden");
+            const pathLabel = document.getElementById("drivePathLabel");
+            if (pathLabel) pathLabel.textContent = data.drive_path;
+        } else {
+            pathRow.classList.add("hidden");
+        }
+    }
+    if (cachedSection) {
+        if (data.drive_mode) {
+            cachedSection.classList.remove("hidden");
+            renderDriveCachedModels(data.cached_models || []);
+        } else {
+            cachedSection.classList.add("hidden");
+        }
+    }
+}
+
+async function toggleDriveMode(enabled) {
+    try {
+        const resp = await fetch("/api/drive/mode", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ enabled })
+        });
+        if (!resp.ok) {
+            const err = await resp.json();
+            showToast(err.detail || "Failed to toggle Drive mode", "error");
+            // Revert toggle
+            const toggle = document.getElementById("driveModeToggle");
+            if (toggle) toggle.checked = !enabled;
+            return;
+        }
+        showToast(enabled ? "Drive mode enabled — models will be saved to Drive" : "Drive mode disabled", enabled ? "success" : "info");
+        await fetchDriveStatus();
+        if (enabled) fetchDriveCachedModels();
+    } catch (err) {
+        showToast(`Drive toggle error: ${err.message}`, "error");
+    }
+}
+
+async function fetchDriveCachedModels() {
+    const list = document.getElementById("driveCachedList");
+    if (!list) return;
+    list.innerHTML = `<span class="text-[10px] text-slate-500 italic animate-pulse">Scanning Drive...</span>`;
+    try {
+        const resp = await fetch("/api/drive/cached-models");
+        const data = await resp.json();
+        renderDriveCachedModels(data.models || []);
+    } catch (err) {
+        list.innerHTML = `<span class="text-[10px] text-red-400 italic">Failed to scan Drive: ${err.message}</span>`;
+    }
+}
+
+function renderDriveCachedModels(models) {
+    const list = document.getElementById("driveCachedList");
+    if (!list) return;
+    if (!models || models.length === 0) {
+        list.innerHTML = `<span class="text-[10px] text-slate-500 italic">No models found in Drive yet.</span>`;
+        return;
+    }
+    list.innerHTML = models.map(modelId => `
+        <div class="flex items-center justify-between bg-[#080B13] border border-slate-800/60 rounded-xl px-3 py-2">
+            <div class="flex items-center gap-2 min-w-0">
+                <i class="fa-solid fa-box-archive text-yellow-400 text-[10px] shrink-0"></i>
+                <span class="text-[11px] font-mono text-slate-300 truncate" title="${modelId}">${modelId}</span>
+            </div>
+            <button
+                onclick="loadModelFromDrive('${modelId}')"
+                class="shrink-0 ml-2 text-[10px] font-semibold text-indigo-400 hover:text-indigo-300 bg-indigo-950/30 hover:bg-indigo-950/50 border border-indigo-700/30 rounded-lg px-2.5 py-1 transition flex items-center gap-1">
+                <i class="fa-solid fa-upload text-[9px]"></i> Load
+            </button>
+        </div>
+    `).join('');
+}
+
+function loadModelFromDrive(modelId) {
+    // Pre-fill model input and trigger load
+    const modelInput = document.getElementById("modelInput");
+    if (modelInput) {
+        modelInput.value = modelId;
+        showToast(`Loading ${modelId} from Drive...`, "info");
+        triggerModelLoad();
+        // Switch to chat view
+        switchView('chatView');
+    }
+}
+// ──────────────────────────────────────────────────────────────────────────────

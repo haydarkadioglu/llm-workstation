@@ -471,6 +471,35 @@ def delete_cached_model_endpoint(repo_id: str = Body(..., embed=True)):
     else:
         raise HTTPException(status_code=404, detail=f"Model {repo_id} not found in cache or delete failed")
 
+# ─── Google Drive Endpoints ────────────────────────────────────────────────────
+class DriveModePayload(BaseModel):
+    enabled: bool
+
+@app.get("/api/drive/status")
+def drive_status_endpoint():
+    """Returns current Drive mount and mode state."""
+    from models import get_drive_status
+    return get_drive_status()
+
+@app.post("/api/drive/mode")
+def drive_mode_endpoint(payload: DriveModePayload):
+    """Enable or disable Drive-backed model storage."""
+    from models import set_drive_mode
+    result = set_drive_mode(payload.enabled)
+    if not result.get("ok", False):
+        raise HTTPException(status_code=400, detail=result.get("error", "Unknown error"))
+    return result
+
+@app.get("/api/drive/cached-models")
+def drive_cached_models_endpoint():
+    """List models already saved in Drive."""
+    from models import get_drive_cached_models, is_drive_mounted, _use_drive
+    if not is_drive_mounted():
+        return {"models": [], "error": "Drive not mounted"}
+    return {"models": get_drive_cached_models()}
+# ──────────────────────────────────────────────────────────────────────────────
+
+
 # App Startup/Shutdown handlers
 @app.on_event("startup")
 def app_startup():

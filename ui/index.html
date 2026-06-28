@@ -259,6 +259,12 @@
                             <span id="mcpChatBadgeLabel">MCP: Not Connected</span>
                             <i class="fa-solid fa-network-wired text-[9px] ml-0.5 opacity-60"></i>
                         </div>
+                        <!-- Drive Status Badge -->
+                        <div id="driveChatBadge" class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800/30 border border-slate-800 text-xs text-slate-500 font-mono" title="Google Drive Storage">
+                            <span id="driveChatBadgeDot" class="w-1.5 h-1.5 rounded-full bg-slate-600"></span>
+                            <span id="driveChatBadgeLabel">Drive: —</span>
+                            <i class="fa-brands fa-google-drive text-[9px] ml-0.5 opacity-60"></i>
+                        </div>
                         <button onclick="clearChat()" class="text-xs text-red-400 hover:text-red-300 flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-red-950/20 border border-red-900/30 hover:border-red-800 transition">
                             <i class="fa-solid fa-trash-can text-[10px]"></i> Clear Chat
                         </button>
@@ -1076,6 +1082,57 @@
                         <div class="text-right font-mono">
                             <span class="text-xs font-bold text-indigo-400 tracking-wider block">haydarkadioglu/llm-workstation</span>
                             <a href="https://haydarkadioglu.com" target="_blank" class="text-[9px] text-slate-500 hover:text-indigo-400 mt-0.5 block transition duration-150 hover:underline">developed by haydarkadioglu.com</a>
+                        </div>
+                    </div>
+
+                    <!-- Google Drive Storage -->
+                    <div class="bg-[#131929]/50 border border-slate-800/80 rounded-2xl p-5 space-y-4">
+                        <div class="flex items-center justify-between">
+                            <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-300">
+                                <i class="fa-brands fa-google-drive mr-1.5 text-yellow-400"></i>Google Drive Storage
+                            </h3>
+                            <!-- Drive Mount Status Badge -->
+                            <div id="driveMountBadge" class="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-slate-800/60 border border-slate-700 text-[10px] font-mono text-slate-500">
+                                <span id="driveMountDot" class="w-1.5 h-1.5 rounded-full bg-slate-600"></span>
+                                <span id="driveMountLabel">Checking...</span>
+                            </div>
+                        </div>
+
+                        <p class="text-xs text-slate-500">When Google Drive is mounted in Colab (<code class="text-pink-400 text-[10px]">drive.mount('/content/drive')</code>), enable this to save and load models directly from Drive — no re-downloading between sessions.</p>
+
+                        <!-- Drive Mode Toggle -->
+                        <div class="flex items-center justify-between py-2 border-t border-slate-800/60">
+                            <div>
+                                <span class="text-xs text-slate-300 font-medium">Use Drive for Model Storage</span>
+                                <p class="text-[10px] text-slate-500 mt-0.5">Downloads go to Drive. Existing Drive models load without re-download.</p>
+                            </div>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="driveModeToggle" class="sr-only peer" onchange="toggleDriveMode(this.checked)" disabled>
+                                <div class="w-9 h-5 bg-slate-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-300 after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-yellow-500 peer-disabled:opacity-40 peer-disabled:cursor-not-allowed"></div>
+                            </label>
+                        </div>
+
+                        <!-- Drive Path Display -->
+                        <div id="drivePathRow" class="hidden bg-[#080B13] border border-slate-800/80 rounded-xl px-3 py-2 flex items-center justify-between">
+                            <span class="text-[10px] font-mono text-yellow-400 truncate" id="drivePathLabel">/content/drive/MyDrive/LLM-Workstation/models</span>
+                            <button onclick="navigator.clipboard.writeText(document.getElementById('drivePathLabel').innerText)" class="text-slate-500 hover:text-white transition ml-2 shrink-0">
+                                <i class="fa-regular fa-copy text-[10px]"></i>
+                            </button>
+                        </div>
+
+                        <!-- Drive Cached Models -->
+                        <div id="driveCachedSection" class="hidden space-y-2 pt-1 border-t border-slate-800/60">
+                            <div class="flex items-center justify-between">
+                                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                    <i class="fa-solid fa-folder-open mr-1 text-yellow-400"></i>Models on Drive
+                                </span>
+                                <button onclick="fetchDriveCachedModels()" class="text-indigo-400 hover:text-indigo-300 transition" title="Refresh">
+                                    <i class="fa-solid fa-rotate-right text-[10px]"></i>
+                                </button>
+                            </div>
+                            <div id="driveCachedList" class="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                                <span class="text-[10px] text-slate-500 italic">Scanning Drive...</span>
+                            </div>
                         </div>
                     </div>
 
