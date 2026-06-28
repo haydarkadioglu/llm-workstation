@@ -11,6 +11,22 @@ import subprocess
 import requests
 from typing import List, Dict, Any, Optional, Union
 
+def find_session_id_recursive(d: Any) -> Optional[str]:
+    if isinstance(d, dict):
+        for k, v in d.items():
+            if k.lower() in ("sessionid", "session_id", "session-id"):
+                return str(v)
+        for v in d.values():
+            res = find_session_id_recursive(v)
+            if res:
+                return res
+    elif isinstance(d, list):
+        for item in d:
+            res = find_session_id_recursive(item)
+            if res:
+                return res
+    return None
+
 class StdioMcpClient:
     def __init__(self, command: str, args: List[str]):
         self.command = command
@@ -318,6 +334,7 @@ class HttpMcpClient:
         self.msg_counter = 1
         self.lock = threading.Lock()
         self.session_id = None
+        self.last_headers = None
         
     def connect(self):
         # Handshake: initialize
@@ -329,13 +346,16 @@ class HttpMcpClient:
         
         # Capture sessionId
         if init_resp:
-            self.session_id = init_resp.get("sessionId")
-            if not self.session_id:
-                result = init_resp.get("result")
-                if isinstance(result, dict):
-                    self.session_id = result.get("sessionId")
+            self.session_id = find_session_id_recursive(init_resp)
+            if not self.session_id and self.last_headers:
+                for k, v in self.last_headers.items():
+                    if k.lower() in ("mcp-session-id", "x-session-id", "session-id", "sessionid", "session_id"):
+                        self.session_id = v
+                        break
             if self.session_id:
                 print(f"[MCP HTTP Client] Captured Mcp-Session-Id: {self.session_id}")
+            else:
+                print("[MCP HTTP Client Warning] Could not extract session ID from response body or headers.")
         
         # Handshake: initialized
         self.send_notification("notifications/initialized", {})
@@ -359,12 +379,16 @@ class HttpMcpClient:
         if params:
             payload["params"] = params
             
-        headers = {"Content-Type": "application/json"}
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+        }
         if self.session_id:
             headers["Mcp-Session-Id"] = self.session_id
             
         try:
             response = requests.post(self.url, json=payload, headers=headers, timeout=15)
+            self.last_headers = response.headers
             if response.status_code == 200:
                 return response.json()
             else:
@@ -381,12 +405,16 @@ class HttpMcpClient:
         if params:
             payload["params"] = params
             
-        headers = {"Content-Type": "application/json"}
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+        }
         if self.session_id:
             headers["Mcp-Session-Id"] = self.session_id
             
         try:
-            requests.post(self.url, json=payload, headers=headers, timeout=5)
+            response = requests.post(self.url, json=payload, headers=headers, timeout=5)
+            self.last_headers = response.headers
         except Exception as e:
             print(f"[HTTP Client Error] Notification failed: {e}")
             
