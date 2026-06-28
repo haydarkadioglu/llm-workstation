@@ -163,6 +163,7 @@ class SseMcpClient:
     def __init__(self, url: str):
         self.url = url
         self.session_url = None
+        self.session_id = None
         self.pending_responses = {}
         self.tools = []
         self.thread = None
@@ -243,6 +244,14 @@ class SseMcpClient:
             if not response or response.status_code != 200:
                 self.active = False
                 return
+                
+            # Try to capture session ID from headers for streamable-HTTP (GET/POST)
+            for k, v in response.headers.items():
+                if k.lower() in ("mcp-session-id", "x-session-id", "session-id", "sessionid", "session_id"):
+                    self.session_id = v
+                    self.session_url = self.url
+                    print(f"[SSE Client] Captured session ID from response headers: {self.session_id}")
+                    break
                 
             current_event = None
             for line in response.iter_lines():
