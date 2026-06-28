@@ -35,14 +35,17 @@ def set_drive_mode(enabled: bool) -> dict:
             return {"ok": False, "error": "Google Drive is not mounted. Run drive.mount('/content/drive') in Colab first."}
         os.makedirs(DRIVE_LLM_DIR, exist_ok=True)
         os.environ["HF_HOME"] = DRIVE_LLM_DIR
+        os.environ["HF_HUB_CACHE"] = DRIVE_LLM_DIR
         os.environ["TRANSFORMERS_CACHE"] = DRIVE_LLM_DIR
         print(f"[Drive] Drive mode ENABLED. Cache dir: {DRIVE_LLM_DIR}")
         return {"ok": True, "drive_path": DRIVE_LLM_DIR}
     else:
         os.environ.pop("HF_HOME", None)
+        os.environ.pop("HF_HUB_CACHE", None)
         os.environ.pop("TRANSFORMERS_CACHE", None)
         print("[Drive] Drive mode DISABLED. Using default HF cache.")
         return {"ok": True, "drive_path": None}
+
 
 def get_drive_status() -> dict:
     """Return current Drive state for the UI."""
@@ -239,6 +242,7 @@ class ModelManager:
         self.image_pipeline = None
         self.model_id = None
         self.is_vision = False
+        self.is_gguf = False
         self.status = "No model loaded"
         self.loading_progress = 0
         self.loading_speed = ""
@@ -277,6 +281,30 @@ class ModelManager:
                     hf_token = hf_token.strip()
                     if not hf_token:
                         hf_token = None
+                        
+                is_gguf_request = model_id.endswith(".gguf")
+                self.is_gguf = is_gguf_request
+                
+                if is_gguf_request:
+                    print(f"[ModelManager] GGUF format detected. Checking llama-cpp-python installation...")
+                    self.status = "Preparing GGUF environment..."
+                    try:
+                        import llama_cpp
+                    except ImportError:
+                        print("[ModelManager] llama-cpp-python not found. Installing via pre-compiled Colab wheels (CU121)...")
+                        self.status = "Installing llama.cpp (takes ~10s)..."
+                        import subprocess
+                        import sys
+                        try:
+                            subprocess.check_call([
+                                sys.executable, "-m", "pip", "install", 
+                                "llama-cpp-python", 
+                                "--extra-index-url", "https://abetlen.github.io/llama-cpp-python/whl/cu121"
+                            ])
+                            import llama_cpp
+                            print("[ModelManager] llama-cpp-python installed successfully.")
+                        except Exception as e:
+                            raise RuntimeError(f"Failed to install llama-cpp-python: {e}")
                 
                 if hf_token:
                     os.environ["HF_TOKEN"] = hf_token
@@ -401,9 +429,54 @@ class ModelManager:
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
                 
+                # Double check Drive state in load thread
+                _drive_cache = DRIVE_LLM_DIR if _use_drive and is_drive_mounted() else None
+                print(f"[ModelManager] Drive state at load time: _use_drive={_use_drive}, is_drive_mounted={is_drive_mounted()}, _drive_cache={_drive_cache}")
+
+                if is_gguf_request:
+                    print(f"[ModelManager] Loading GGUF model: {model_id}")
+                    # Parse model_id (e.g., repo/id/filename.gguf)
+                    parts = model_id.split("/")
+                    if len(parts) >= 3:
+                        repo_id = "/".join(parts[:-1])
+                        filename = parts[-1]
+                    else:
+                        repo_id = parts[0]
+                        filename = parts[-1] if len(parts) > 1 else model_id
+                        
+                    from huggingface_hub import hf_hub_download
+                    try:
+                        tqdm.tqdm.__init__ = _patched_tqdm_init
+                        tqdm.tqdm.update = _patched_tqdm_update
+                        self.status = f"Downloading GGUF..."
+                        print(f"[ModelManager] Downloading/verifying GGUF from '{repo_id}' file '{filename}'...")
+                        local_file = hf_hub_download(
+                            repo_id=repo_id,
+                            filename=filename,
+                            cache_dir=_drive_cache,
+                            token=hf_token
+                        )
+                        self.status = f"Loading GGUF into memory..."
+                        print(f"[ModelManager] Instantiating llama_cpp.Llama from {local_file}")
+                        import llama_cpp
+                        self.model = llama_cpp.Llama(
+                            model_path=local_file,
+                            n_gpu_layers=-1, # All layers to GPU
+                            n_ctx=8192,
+                            verbose=False
+                        )
+                        self.model_id = model_id
+                        self.status = "Ready"
+                        self.loading_progress = 100
+                        print(f"[ModelManager] GGUF Model '{model_id}' successfully loaded.")
+                        return True
+                    finally:
+                        tqdm.tqdm.__init__ = _original_tqdm_init
+                        tqdm.tqdm.update = _original_tqdm_update
+
                 print(f"[ModelManager] Querying config for '{model_id}'...")
                 from transformers import AutoConfig
-                config = AutoConfig.from_pretrained(model_id, trust_remote_code=True, token=hf_token)
+                config = AutoConfig.from_pretrained(model_id, trust_remote_code=True, token=hf_token, cache_dir=_drive_cache)
                 
                 model_type = getattr(config, "model_type", "").lower()
                 is_vl = any(vt in model_type for vt in ["vision", "vl", "mllama", "llava", "paligemma", "internvl"])
@@ -422,17 +495,26 @@ class ModelManager:
                     tqdm.tqdm.__init__ = _patched_tqdm_init
                     tqdm.tqdm.update = _patched_tqdm_update
                     
-                    print(f"[ModelManager] Downloading/Verifying repository for '{model_id}'...{'  [Drive mode]' if _use_drive and is_drive_mounted() else ''}")
+                    print(f"[ModelManager] Downloading/Verifying repository for '{model_id}'...{'  [Drive mode (FUSE safe)]' if _drive_cache else ''}")
                     from huggingface_hub import snapshot_download
-                    _drive_cache = DRIVE_LLM_DIR if _use_drive and is_drive_mounted() else None
-                    local_dir = snapshot_download(
-                        repo_id=model_id,
-                        cache_dir=_drive_cache,
-                        allow_patterns=["*.json", "*.bin", "*.safetensors", "*.model", "*.txt", "*.py"],
-                        ignore_patterns=["*.msgpack", "*.h5", "*.ot"],
-                        resume_download=True,
-                        token=hf_token
-                    )
+                    
+                    # Prevent FUSE saturation when downloading directly to Drive
+                    download_kwargs = {
+                        "repo_id": model_id,
+                        "cache_dir": _drive_cache,
+                        "allow_patterns": ["*.json", "*.bin", "*.safetensors", "*.model", "*.txt", "*.py"],
+                        "ignore_patterns": ["*.msgpack", "*.h5", "*.ot"],
+                        "resume_download": True,
+                        "token": hf_token
+                    }
+                    if _drive_cache:
+                        download_kwargs["max_workers"] = 1  # Download files sequentially for FUSE to sync
+                        os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "0" # Disable high-speed rust downloader
+                    else:
+                        os.environ.pop("HF_HUB_ENABLE_HF_TRANSFER", None) # Let it be blazing fast
+                        
+                    local_dir = snapshot_download(**download_kwargs)
+
                     
                     self.status = f"Loading model weights into memory..."
                     print(f"[ModelManager] Loading model from {local_dir}...")
@@ -865,6 +947,36 @@ class ModelManager:
     def _execute_inference_step(self, messages: List[Dict[str, Any]], temperature: float, top_p: float, max_tokens: int):
         with self.lock:
             try:
+                if self.is_gguf:
+                    start_time = time.time()
+                    token_count = 0
+                    # Sanitize messages for GGUF: remove complex image dictionaries if any
+                    clean_msgs = []
+                    for msg in messages:
+                        if isinstance(msg["content"], str):
+                            clean_msgs.append({"role": msg["role"], "content": msg["content"]})
+                        elif isinstance(msg["content"], list):
+                            text_only = "".join([m["text"] for m in msg["content"] if m.get("type") == "text"])
+                            clean_msgs.append({"role": msg["role"], "content": text_only})
+                            
+                    stream = self.model.create_chat_completion(
+                        messages=clean_msgs,
+                        temperature=temperature if temperature > 0.0 else 1.0,
+                        top_p=top_p,
+                        max_tokens=max_tokens,
+                        stream=True
+                    )
+                    for chunk in stream:
+                        delta = chunk["choices"][0]["delta"]
+                        if "content" in delta and delta["content"]:
+                            token_text = delta["content"]
+                            token_count += 1
+                            elapsed = time.time() - start_time
+                            if elapsed > 0:
+                                self.last_tokens_per_sec = round(token_count / elapsed, 2)
+                            yield token_text
+                    return
+
                 processed_messages = []
                 image_inputs = []
                 
