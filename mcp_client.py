@@ -164,6 +164,7 @@ class SseMcpClient:
         self.url = url
         self.session_url = None
         self.session_id = None
+        self.init_response = None
         self.pending_responses = {}
         self.tools = []
         self.thread = None
@@ -176,8 +177,8 @@ class SseMcpClient:
         self.thread = threading.Thread(target=self._read_sse, daemon=True)
         self.thread.start()
         
-        # Wait for SSE session endpoint setup
-        timeout = 8
+        # Wait for SSE session endpoint setup (increased timeout for cold-start tunnels)
+        timeout = 25
         start = time.time()
         while not self.session_url:
             if not self.active:
@@ -188,13 +189,29 @@ class SseMcpClient:
             time.sleep(0.1)
             
         # Handshake: initialize
-        init_id = self.send_message("initialize", {
-            "protocolVersion": "2024-11-05",
-            "capabilities": {},
-            "clientInfo": {"name": "llm-workstation-client", "version": "1.0.0"}
-        })
-        resp = self.wait_for_response(init_id)
-        
+        # If we connected using POST directly, the initialize request was already sent in _read_sse!
+        # So we just wait for its response. Otherwise, we send it now.
+        use_post_directly = self.url in POST_PREFERRING_URLS
+        if use_post_directly:
+            print("[SSE Client] Waiting for initialize response from opening stream POST request...")
+            start = time.time()
+            while not self.init_response:
+                if not self.active:
+                    raise ConnectionError("SSE reader connection broke during handshake")
+                if time.time() - start > 15:
+                    raise TimeoutError("Timeout waiting for stream initialize response")
+                time.sleep(0.1)
+            print("[SSE Client] Handshake initialization response received.")
+        else:
+            init_id = self.send_message("initialize", {
+                "protocolVersion": "2024-11-05",
+                "capabilities": {},
+                "clientInfo": {"name": "llm-workstation-client", "version": "1.0.0"}
+            })
+            resp = self.wait_for_response(init_id)
+            if not resp:
+                raise TimeoutError("Handshake initialization timed out")
+            
         # Handshake: initialized
         self.send_notification("notifications/initialized", {})
         
@@ -274,6 +291,8 @@ class SseMcpClient:
                         try:
                             payload = json.loads(data_str)
                             msg_id = payload.get("id")
+                            if msg_id == 1:
+                                self.init_response = payload
                             if msg_id in self.pending_responses:
                                 self.pending_responses[msg_id].put(payload)
                         except Exception as e:
