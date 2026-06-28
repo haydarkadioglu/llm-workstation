@@ -280,10 +280,12 @@ class ModelManager:
                 if hf_token is not None:
                     hf_token = hf_token.strip()
                     if not hf_token:
-                        hf_token = None
-                        
-                is_gguf_request = model_id.endswith(".gguf")
+                is_gguf_request = model_id.lower().endswith(".gguf")
                 self.is_gguf = is_gguf_request
+                
+                if "-gguf" in model_id.lower() and not is_gguf_request:
+                    raise ValueError("GGUF model repos contains multiple files (Q4, Q8, etc). You must specify the EXACT filename at the end! Example: repo_id/model-Q4_K_M.gguf")
+
                 
                 if is_gguf_request:
                     print(f"[ModelManager] GGUF format detected. Checking llama-cpp-python installation...")
