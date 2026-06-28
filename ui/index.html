@@ -349,10 +349,17 @@
                             </button>
                         </div>
 
-                        <!-- System Prompt -->
-                        <div class="space-y-2">
-                            <div class="flex justify-between items-center">
-                                <label class="text-xs text-slate-400 font-medium">System Prompt</label>
+                        <!-- System Prompt & Persona -->
+                        <div class="space-y-3">
+                            <div class="flex items-center justify-between">
+                                <label class="text-xs text-slate-400 font-medium">System Persona</label>
+                                <select id="personaSelect" onchange="applyPersona()" class="bg-[#080B13] border border-slate-800 text-slate-300 text-[10px] rounded-lg px-2 py-1 outline-none focus:border-indigo-500 cursor-pointer">
+                                    <option value="short">Short & Clear (Default)</option>
+                                    <option value="comprehensive">Comprehensive & Detailed</option>
+                                    <option value="coding">Expert Coder</option>
+                                    <option value="creative">Creative Writer</option>
+                                    <option value="custom">Custom</option>
+                                </select>
                             </div>
                             <textarea id="sysPrompt" rows="4" 
                                       class="w-full bg-[#080B13] border border-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-slate-100 rounded-xl p-2.5 text-xs outline-none transition resize-none font-sans">You are a helpful AI assistant running inside the LLM Workstation. You have access to Model Context Protocol (MCP) clients and servers to invoke external tools (such as web_search) when Agent Mode is enabled.</textarea>

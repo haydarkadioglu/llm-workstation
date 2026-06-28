@@ -69,6 +69,7 @@ function saveSettings() {
     localStorage.setItem("model_input", document.getElementById("modelInput").value);
     localStorage.setItem("model_hf_token", document.getElementById("modelHfTokenInput").value);
     localStorage.setItem("agent_mode", document.getElementById("agentToggle").checked);
+    localStorage.setItem("sys_persona", document.getElementById("personaSelect").value);
 }
 
 function restoreSettings() {
@@ -79,8 +80,16 @@ function restoreSettings() {
     const model = localStorage.getItem("model_input");
     const modelToken = localStorage.getItem("model_hf_token");
     const agent = localStorage.getItem("agent_mode");
+    const persona = localStorage.getItem("sys_persona");
 
     if (sys !== null) document.getElementById("sysPrompt").value = sys;
+    if (persona !== null) {
+        document.getElementById("personaSelect").value = persona;
+    } else {
+        // First run, set default short persona
+        document.getElementById("personaSelect").value = "short";
+        applyPersona();
+    }
     if (temp !== null) {
         document.getElementById("tempSlider").value = temp;
         document.getElementById("tempVal").innerText = temp;
@@ -110,6 +119,23 @@ function bindSettingListeners() {
     document.getElementById("modelInput").addEventListener("input", saveSettings);
     document.getElementById("modelHfTokenInput").addEventListener("input", saveSettings);
     document.getElementById("agentToggle").addEventListener("change", saveSettings);
+}
+
+const PERSONAS = {
+    "short": "You are a helpful AI assistant. Keep your answers extremely concise, short, and clear. Avoid rambling or lengthy explanations. Get straight to the point.",
+    "comprehensive": "You are a highly detailed and comprehensive AI assistant. Explain concepts thoroughly, provide step-by-step reasoning, give examples, and cover all possible edge cases in your answers.",
+    "coding": "You are an expert software engineer. Provide robust, clean, and optimized code snippets. Only include necessary explanations, focus heavily on best practices, and anticipate potential bugs.",
+    "creative": "You are a creative writer and brainstormer. Use vivid language, imaginative metaphors, and think outside the box. Avoid generic corporate speak.",
+    "custom": "You are a helpful AI assistant running inside the LLM Workstation."
+};
+
+function applyPersona() {
+    const sel = document.getElementById("personaSelect").value;
+    const txt = document.getElementById("sysPrompt");
+    if (sel !== "custom") {
+        txt.value = PERSONAS[sel];
+    }
+    saveSettings();
 }
 
 document.addEventListener("DOMContentLoaded", () => {

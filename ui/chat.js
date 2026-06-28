@@ -121,8 +121,8 @@ function renderContent(content) {
     
     const widgets = [];
     
-    // Replace completed think blocks with placeholders (supports both <think> and <|channel|>thought)
-    processed = processed.replace(/(?:<think>|<\|channel\|>thought\s*)([\s\S]*?)(?:<\/think>|<channel\|>)/g, function(match, thinkingText) {
+    // Replace completed think blocks with placeholders (supports <think>, <thought>, and <|channel|>thought)
+    processed = processed.replace(/(?:<think>|<thought>|<\|channel\|>thought\s*)([\s\S]*?)(?:<\/think>|<\/thought>|<channel\|>)/g, function(match, thinkingText) {
         const id = widgets.length;
         widgets.push(`
             <details class="group mb-1.5 bg-[#0c101b]/60 border border-slate-800/80 rounded-xl overflow-hidden shadow-md">
@@ -137,7 +137,7 @@ function renderContent(content) {
     });
     
     // Replace active think block with placeholder
-    const activeThinkMatch = processed.match(/(?:<think>|<\|channel\|>thought\s*)/);
+    const activeThinkMatch = processed.match(/(?:<think>|<thought>|<\|channel\|>thought\s*)/);
     if (activeThinkMatch) {
         const openThinkIdx = activeThinkMatch.index;
         const thinkingText = processed.substring(openThinkIdx + activeThinkMatch[0].length);
