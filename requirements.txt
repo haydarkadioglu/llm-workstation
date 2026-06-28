@@ -14,3 +14,6 @@ diffusers>=0.25.0
 # GGUF Support (Pre-compiled for Colab CU121)
 --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu121
 llama-cpp-python>=0.2.75
+
+# Rust-based blazing fast downloads
+hf-transfer

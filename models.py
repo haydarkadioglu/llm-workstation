@@ -449,6 +449,12 @@ class ModelManager:
                         filename = parts[-1] if len(parts) > 1 else model_id
                         
                     from huggingface_hub import hf_hub_download
+                    
+                    if _drive_cache:
+                        os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "0" # Disable high-speed rust downloader for Drive FUSE
+                    else:
+                        os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1" # Blazing fast local disk download
+                        
                     try:
                         tqdm.tqdm.__init__ = _patched_tqdm_init
                         tqdm.tqdm.update = _patched_tqdm_update
@@ -534,7 +540,7 @@ class ModelManager:
                         download_kwargs["max_workers"] = 1  # Download files sequentially for FUSE to sync
                         os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "0" # Disable high-speed rust downloader
                     else:
-                        os.environ.pop("HF_HUB_ENABLE_HF_TRANSFER", None) # Let it be blazing fast
+                        os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1" # Blazing fast local disk download
                         
                     local_dir = snapshot_download(**download_kwargs)
 
