@@ -712,7 +712,7 @@ async function submitHfSearch() {
     document.getElementById('hfFileList').innerHTML = `<div class="text-center py-10 text-slate-500 text-xs font-mono"><i class="fa-solid fa-file-code text-2xl mb-3 opacity-20"></i><br>No repository selected</div>`;
     
     try {
-        const response = await fetch(`${API_BASE_URL}/api/hf/search?query=${encodeURIComponent(query)}`);
+        const response = await fetch(`/api/hf/search?query=${encodeURIComponent(query)}`);
         if (!response.ok) {
             let errText = await response.text();
             console.error("HF Search Error:", errText);
@@ -758,7 +758,7 @@ async function fetchHfRepoFiles(repoId) {
     document.getElementById('hfFileList').innerHTML = '';
     
     try {
-        const response = await fetch(`${API_BASE_URL}/api/hf/repo_files?repo_id=${encodeURIComponent(repoId)}`);
+        const response = await fetch(`/api/hf/repo_files?repo_id=${encodeURIComponent(repoId)}`);
         const data = await response.json();
         
         document.getElementById('hfFileLoader').classList.add('hidden');
