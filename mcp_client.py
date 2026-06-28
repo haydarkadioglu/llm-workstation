@@ -202,7 +202,9 @@ class SseMcpClient:
             
             if use_post_directly:
                 print(f"[SSE Client] Connecting to {self.url} using POST...")
-                response = requests.post(self.url, headers=headers, stream=True, timeout=20)
+                post_headers = headers.copy()
+                post_headers["Content-Type"] = "application/json"
+                response = requests.post(self.url, headers=post_headers, json={}, stream=True, timeout=20)
                 if response.status_code == 200:
                     POST_PREFERRING_URLS.add(self.url)
                     print(f"[SSE Client Cache] Cached {self.url} as POST-preferring endpoint.")
