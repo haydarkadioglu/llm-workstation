@@ -209,7 +209,7 @@ class SseMcpClient:
             # Set standard event-stream Accept headers to satisfy SSE handshake specs
             headers = {
                 'User-Agent': 'Mozilla/5.0',
-                'Accept': 'text/event-stream'
+                'Accept': 'application/json, text/event-stream'
             }
             
             use_post_directly = self.url in POST_PREFERRING_URLS
@@ -288,7 +288,13 @@ class SseMcpClient:
             
         self.pending_responses[msg_id] = queue.Queue()
         
-        headers = {"Content-Type": "application/json"}
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "application/json, text/event-stream"
+        }
+        if self.session_id:
+            headers["Mcp-Session-Id"] = self.session_id
+            
         requests.post(self.session_url, json=payload, headers=headers, timeout=10)
         return msg_id
         
@@ -300,7 +306,13 @@ class SseMcpClient:
         if params:
             payload["params"] = params
             
-        headers = {"Content-Type": "application/json"}
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "application/json, text/event-stream"
+        }
+        if self.session_id:
+            headers["Mcp-Session-Id"] = self.session_id
+            
         requests.post(self.session_url, json=payload, headers=headers, timeout=10)
         
     def wait_for_response(self, msg_id: int, timeout: int = 15) -> Optional[dict]:
@@ -381,7 +393,7 @@ class HttpMcpClient:
             
         headers = {
             "Content-Type": "application/json",
-            "Accept": "application/json"
+            "Accept": "application/json, text/event-stream"
         }
         if self.session_id:
             headers["Mcp-Session-Id"] = self.session_id
@@ -407,7 +419,7 @@ class HttpMcpClient:
             
         headers = {
             "Content-Type": "application/json",
-            "Accept": "application/json"
+            "Accept": "application/json, text/event-stream"
         }
         if self.session_id:
             headers["Mcp-Session-Id"] = self.session_id
