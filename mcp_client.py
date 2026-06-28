@@ -204,7 +204,12 @@ class SseMcpClient:
                 print(f"[SSE Client] Connecting to {self.url} using POST...")
                 post_headers = headers.copy()
                 post_headers["Content-Type"] = "application/json"
-                response = requests.post(self.url, headers=post_headers, json={}, stream=True, timeout=20)
+                init_payload = {
+                    "jsonrpc": "2.0",
+                    "method": "tools/list",
+                    "id": 1
+                }
+                response = requests.post(self.url, headers=post_headers, json=init_payload, stream=True, timeout=20)
                 if response.status_code == 200:
                     POST_PREFERRING_URLS.add(self.url)
                     print(f"[SSE Client Cache] Cached {self.url} as POST-preferring endpoint.")
