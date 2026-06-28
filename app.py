@@ -458,11 +458,14 @@ def disconnect_mcp_client_endpoint(conn_id: str = Body(..., embed=True)):
 
 # ─── Hugging Face Search Endpoints ─────────────────────────────────────────────
 @app.get("/api/hf/search")
-def hf_search_endpoint(query: str):
+def hf_search_endpoint(query: Optional[str] = None):
     from huggingface_hub import HfApi
     try:
         api = HfApi()
-        models = api.list_models(search=query, filter="gguf", limit=15, sort="downloads", direction=-1)
+        if query:
+            models = api.list_models(search=query, filter="gguf", limit=15, sort="downloads", direction=-1)
+        else:
+            models = api.list_models(filter="gguf", limit=15, sort="downloads", direction=-1)
         
         results = []
         for m in models:
