@@ -125,12 +125,12 @@ function renderContent(content) {
     processed = processed.replace(/<think>([\s\S]*?)<\/think>/g, function(match, thinkingText) {
         const id = widgets.length;
         widgets.push(`
-            <details class="group mb-3 bg-[#0c101b]/60 border border-slate-800/80 rounded-xl overflow-hidden shadow-md">
-                <summary class="cursor-pointer px-4 py-2 text-xs font-semibold text-slate-400 bg-[#131929]/50 hover:bg-[#1a2136]/50 transition flex items-center justify-between select-none">
+            <details class="group mb-1.5 bg-[#0c101b]/60 border border-slate-800/80 rounded-xl overflow-hidden shadow-md">
+                <summary class="cursor-pointer px-3.5 py-1.5 text-xs font-semibold text-slate-400 bg-[#131929]/50 hover:bg-[#1a2136]/50 transition flex items-center justify-between select-none">
                     <span class="flex items-center gap-1.5 font-mono"><i class="fa-solid fa-brain text-indigo-400"></i> Thinking Process</span>
                     <i class="fa-solid fa-chevron-down text-[9px] text-slate-500 group-open:rotate-180 transition-transform duration-200"></i>
                 </summary>
-                <div class="p-4 text-[11px] leading-relaxed text-slate-400 border-t border-slate-800/40 font-mono whitespace-pre-wrap bg-[#080B13]/30">${parseMarkdown(thinkingText.trim())}</div>
+                <div class="p-3.5 text-[11px] leading-relaxed text-slate-400 border-t border-slate-800/40 font-mono whitespace-pre-wrap bg-[#080B13]/30">${parseMarkdown(thinkingText.trim())}</div>
             </details>
         `);
         return `WIDGETID_${id}_TOKEN`;
@@ -143,12 +143,12 @@ function renderContent(content) {
         processed = processed.substring(0, openThinkIdx);
         const id = widgets.length;
         widgets.push(`
-            <details class="group mb-3 bg-[#0c101b]/60 border border-indigo-500/20 rounded-xl overflow-hidden shadow-md" open>
-                <summary class="cursor-pointer px-4 py-2 text-xs font-semibold text-slate-350 bg-[#131929]/50 hover:bg-[#1a2136]/50 transition flex items-center justify-between select-none">
+            <details class="group mb-1.5 bg-[#0c101b]/60 border border-indigo-500/20 rounded-xl overflow-hidden shadow-md" open>
+                <summary class="cursor-pointer px-3.5 py-1.5 text-xs font-semibold text-slate-350 bg-[#131929]/50 hover:bg-[#1a2136]/50 transition flex items-center justify-between select-none">
                     <span class="flex items-center gap-1.5 font-mono"><i class="fa-solid fa-brain text-indigo-400 animate-pulse"></i> Thinking...</span>
                     <i class="fa-solid fa-chevron-down text-[9px] text-slate-500 group-open:rotate-180 transition-transform duration-200"></i>
                 </summary>
-                <div class="p-4 text-[11px] leading-relaxed text-slate-400 border-t border-slate-800/40 font-mono whitespace-pre-wrap bg-[#080B13]/30">${parseMarkdown(thinkingText.trim())}</div>
+                <div class="p-3.5 text-[11px] leading-relaxed text-slate-400 border-t border-slate-800/40 font-mono whitespace-pre-wrap bg-[#080B13]/30">${parseMarkdown(thinkingText.trim())}</div>
             </details>
         `);
         processed += `WIDGETID_${id}_TOKEN`;
@@ -158,12 +158,12 @@ function renderContent(content) {
     processed = processed.replace(/⚙️ \*\*\[Calling Tool: `([^`]+)` with arguments ([^\]]+)\]\*\*/g, function(match, name, args) {
         const id = widgets.length;
         widgets.push(`
-        <div class="my-3.5 bg-[#090d16] border border-indigo-500/20 rounded-xl p-3 shadow-md">
+        <div class="my-1.5 bg-[#090d16] border border-indigo-500/20 rounded-xl p-2.5 shadow-md">
             <div class="flex items-center gap-2 text-xs font-semibold text-indigo-400 font-mono">
                 <i class="fa-solid fa-gear animate-spin text-[11px]"></i>
                 <span>CALLING TOOL: ${name}</span>
             </div>
-            <pre class="mt-2 text-[10px] text-indigo-300 font-mono whitespace-pre-wrap bg-slate-950/40 p-2.5 rounded-lg border border-slate-800/40 overflow-x-auto">${args}</pre>
+            <pre class="mt-1.5 text-[10px] text-indigo-300 font-mono whitespace-pre-wrap bg-slate-950/40 p-2 rounded-lg border border-slate-800/40 overflow-x-auto">${args}</pre>
         </div>`);
         return `WIDGETID_${id}_TOKEN`;
     });
@@ -178,7 +178,7 @@ function renderContent(content) {
         
         const id = widgets.length;
         widgets.push(`
-        <div class="my-3.5 bg-[#070b12] border border-emerald-500/20 rounded-xl p-3 shadow-md">
+        <div class="my-1.5 bg-[#070b12] border border-emerald-500/20 rounded-xl p-2.5 shadow-md">
             <details class="group" open>
                 <summary class="cursor-pointer flex items-center justify-between text-xs font-semibold text-emerald-400 font-mono select-none">
                     <span class="flex items-center gap-2">
@@ -187,8 +187,8 @@ function renderContent(content) {
                     </span>
                     <i class="fa-solid fa-chevron-down text-[9px] text-slate-500 group-open:rotate-180 transition-transform duration-200"></i>
                 </summary>
-                <div class="mt-2.5 border-t border-slate-800/40 pt-2">
-                    <pre class="text-[10px] text-slate-300 font-mono whitespace-pre-wrap bg-slate-950/40 p-2.5 rounded-lg border border-slate-800/40 overflow-x-auto max-h-52 overflow-y-auto">${displayResult}</pre>
+                <div class="mt-2 border-t border-slate-800/40 pt-2">
+                    <pre class="text-[10px] text-slate-300 font-mono whitespace-pre-wrap bg-slate-950/40 p-2 rounded-lg border border-slate-800/40 overflow-x-auto max-h-52 overflow-y-auto">${displayResult}</pre>
                 </div>
             </details>
         </div>`);
@@ -199,12 +199,12 @@ function renderContent(content) {
     processed = processed.replace(/❌ \*\*\[Tool Execution Failed: ([^\]]+)\]\*\*/g, function(match, err) {
         const id = widgets.length;
         widgets.push(`
-        <div class="my-3.5 bg-red-950/20 border border-red-500/20 rounded-xl p-3 shadow-md">
+        <div class="my-1.5 bg-red-950/20 border border-red-500/20 rounded-xl p-2.5 shadow-md">
             <div class="flex items-center gap-2 text-xs font-semibold text-red-400 font-mono">
                 <i class="fa-solid fa-triangle-exclamation text-[11px]"></i>
                 <span>TOOL EXECUTION FAILED</span>
             </div>
-            <p class="mt-2 text-[10px] text-red-300 font-mono bg-slate-950/30 p-2 rounded border border-red-950">${err}</p>
+            <p class="mt-1.5 text-[10px] text-red-300 font-mono bg-slate-950/30 p-2 rounded border border-red-950">${err}</p>
         </div>`);
         return `WIDGETID_${id}_TOKEN`;
     });
@@ -440,8 +440,27 @@ async function fetchConnectedClients() {
         const response = await fetch("/api/mcp/clients");
         const clients = await response.json();
         renderConnectedClients(clients);
+        updateMcpStatusBadge(clients);
     } catch (err) {
         appendLog(`Failed to fetch connected MCP clients: ${err.message}`, true);
+    }
+}
+
+function updateMcpStatusBadge(clients) {
+    const badge = document.getElementById("mcpChatBadge");
+    const label = document.getElementById("mcpChatBadgeLabel");
+    const dot = document.getElementById("mcpChatBadgeDot");
+    if (!badge) return;
+    const totalTools = clients.reduce((sum, c) => sum + (c.tools ? c.tools.length : 0), 0);
+    const serverCount = clients.length;
+    if (serverCount === 0) {
+        badge.className = "flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800/30 border border-slate-800 text-xs text-slate-500 font-mono";
+        dot.className = "w-1.5 h-1.5 rounded-full bg-slate-600";
+        label.textContent = "MCP: Not Connected";
+    } else {
+        badge.className = "flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-950/30 border border-emerald-700/40 text-xs text-emerald-400 font-mono transition";
+        dot.className = "w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse";
+        label.textContent = `MCP: ${serverCount} server${serverCount > 1 ? 's' : ''} · ${totalTools} tool${totalTools !== 1 ? 's' : ''}`;
     }
 }
 

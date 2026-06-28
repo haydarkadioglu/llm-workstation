@@ -253,6 +253,12 @@
                     
                     <!-- Actions -->
                     <div class="flex items-center gap-2">
+                        <!-- MCP Status Badge -->
+                        <div id="mcpChatBadge" class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800/30 border border-slate-800 text-xs text-slate-500 font-mono" title="External MCP Servers Status">
+                            <span id="mcpChatBadgeDot" class="w-1.5 h-1.5 rounded-full bg-slate-600"></span>
+                            <span id="mcpChatBadgeLabel">MCP: Not Connected</span>
+                            <i class="fa-solid fa-network-wired text-[9px] ml-0.5 opacity-60"></i>
+                        </div>
                         <button onclick="clearChat()" class="text-xs text-red-400 hover:text-red-300 flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-red-950/20 border border-red-900/30 hover:border-red-800 transition">
                             <i class="fa-solid fa-trash-can text-[10px]"></i> Clear Chat
                         </button>
