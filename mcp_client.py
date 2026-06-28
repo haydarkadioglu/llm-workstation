@@ -323,7 +323,18 @@ class SseMcpClient:
         if self.session_id:
             headers["Mcp-Session-Id"] = self.session_id
             
-        requests.post(self.session_url, json=payload, headers=headers, timeout=10)
+        try:
+            response = requests.post(self.session_url, json=payload, headers=headers, timeout=10)
+            if response.status_code == 200:
+                try:
+                    resp_json = response.json()
+                    if isinstance(resp_json, dict) and ("result" in resp_json or "error" in resp_json):
+                        self.pending_responses[msg_id].put(resp_json)
+                except Exception:
+                    pass
+        except Exception as e:
+            print(f"[SSE Client send_message Error] {e}")
+            
         return msg_id
         
     def send_notification(self, method: str, params: Optional[dict] = None):
