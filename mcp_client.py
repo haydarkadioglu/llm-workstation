@@ -326,12 +326,27 @@ class SseMcpClient:
         try:
             response = requests.post(self.session_url, json=payload, headers=headers, timeout=10)
             if response.status_code == 200:
-                try:
-                    resp_json = response.json()
-                    if isinstance(resp_json, dict) and ("result" in resp_json or "error" in resp_json):
-                        self.pending_responses[msg_id].put(resp_json)
-                except Exception:
-                    pass
+                body_text = response.text.strip()
+                # Parse event-stream format if response is serialized as SSE
+                if "data:" in body_text:
+                    for part in body_text.split("\n"):
+                        part = part.strip()
+                        if part.startswith("data:"):
+                            try:
+                                data_str = part.replace("data:", "").strip()
+                                resp_json = json.loads(data_str)
+                                if isinstance(resp_json, dict) and ("result" in resp_json or "error" in resp_json):
+                                    self.pending_responses[msg_id].put(resp_json)
+                                    break
+                            except Exception:
+                                pass
+                else:
+                    try:
+                        resp_json = response.json()
+                        if isinstance(resp_json, dict) and ("result" in resp_json or "error" in resp_json):
+                            self.pending_responses[msg_id].put(resp_json)
+                    except Exception:
+                        pass
         except Exception as e:
             print(f"[SSE Client send_message Error] {e}")
             
