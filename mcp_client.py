@@ -385,17 +385,55 @@ def connect_external_mcp(config: dict) -> dict:
     elif conn_type == "sse" or conn_type == "http":
         url = config.get("url")
         is_sse = True
+        use_post = False
+        
+        # Probe with POST first to avoid 406 on POST-only streamable-http servers
         try:
-            # Quick headers ping to check if server replies with SSE text/event-stream or plain JSON
-            test_headers = {'User-Agent': 'Mozilla/5.0', 'Accept': 'text/event-stream'}
-            test_resp = requests.get(url, headers=test_headers, timeout=2)
-            if "application/json" in test_resp.headers.get("Content-Type", ""):
-                is_sse = False
+            post_headers = {
+                'User-Agent': 'Mozilla/5.0',
+                'Accept': 'text/event-stream, application/json',
+                'Content-Type': 'application/json'
+            }
+            probe_payload = {
+                "jsonrpc": "2.0",
+                "method": "tools/list",
+                "id": 1
+            }
+            test_resp = requests.post(url, headers=post_headers, json=probe_payload, timeout=2)
+            if test_resp.status_code == 200:
+                ct = test_resp.headers.get("Content-Type", "").lower()
+                if "text/event-stream" in ct:
+                    print(f"[MCP Connector] Detected POST-preferring SSE transport for {url}")
+                    is_sse = True
+                    use_post = True
+                    POST_PREFERRING_URLS.add(url)
+                elif "application/json" in ct:
+                    print(f"[MCP Connector] Detected direct HTTP JSON-RPC transport for {url}")
+                    is_sse = False
+                else:
+                    # Ambiguous content type, assume SSE
+                    is_sse = True
+            else:
+                # POST failed, fall back to GET detection
+                raise RuntimeError("POST probe returned non-200")
         except Exception:
-            pass
-            
+            # POST failed or timed out, let's probe with GET
+            try:
+                get_headers = {'User-Agent': 'Mozilla/5.0', 'Accept': 'text/event-stream'}
+                test_resp = requests.get(url, headers=get_headers, timeout=2)
+                if test_resp.status_code == 200:
+                    ct = test_resp.headers.get("Content-Type", "").lower()
+                    if "application/json" in ct:
+                        is_sse = False
+                    else:
+                        is_sse = True
+                else:
+                    is_sse = True
+            except Exception:
+                is_sse = True
+                
         if is_sse:
-            print(f"[MCP Connector] Attempting SSE transport on {url}")
+            print(f"[MCP Connector] Starting SSE client for {url} (use_post={use_post or (url in POST_PREFERRING_URLS)})")
             client = SseMcpClient(url)
             try:
                 client.connect()
@@ -404,7 +442,7 @@ def connect_external_mcp(config: dict) -> dict:
                 client = HttpMcpClient(url)
                 client.connect()
         else:
-            print(f"[MCP Connector] Attempting direct HTTP JSON-RPC transport on {url}")
+            print(f"[MCP Connector] Starting direct HTTP JSON-RPC client for {url}")
             client = HttpMcpClient(url)
             client.connect()
     else:
