@@ -456,6 +456,49 @@ def disconnect_mcp_client_endpoint(conn_id: str = Body(..., embed=True)):
     else:
         raise HTTPException(status_code=404, detail="Connection not found")
 
+# ─── Hugging Face Search Endpoints ─────────────────────────────────────────────
+@app.get("/api/hf/search")
+def hf_search_endpoint(query: str):
+    from huggingface_hub import HfApi
+    try:
+        api = HfApi()
+        models = api.list_models(search=query, filter="gguf", limit=15, sort="downloads", direction=-1)
+        
+        results = []
+        for m in models:
+            results.append({
+                "repo_id": m.modelId,
+                "downloads": getattr(m, "downloads", 0),
+                "likes": getattr(m, "likes", 0),
+                "author": m.author
+            })
+        return {"models": results}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/hf/repo_files")
+def hf_repo_files_endpoint(repo_id: str):
+    from huggingface_hub import HfApi
+    try:
+        api = HfApi()
+        # Get all files in the repository
+        files = api.list_repo_tree(repo_id=repo_id)
+        
+        gguf_files = []
+        for f in files:
+            if f.path.endswith(".gguf"):
+                gguf_files.append({
+                    "filename": f.path,
+                    "size": getattr(f, "size", 0)
+                })
+        
+        # Sort files by size, or keep alphabetical
+        gguf_files.sort(key=lambda x: x["filename"])
+        
+        return {"repo_id": repo_id, "files": gguf_files}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 # HF Cache Management Endpoints
 @app.get("/api/models/cached")
 def get_cached_models_endpoint():

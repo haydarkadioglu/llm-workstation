@@ -679,3 +679,116 @@ async function deleteModelFromCache(repoId) {
         showToast(`Error: ${err.message}`, "error");
     }
 }
+// --- Hugging Face Search Modal Logic ---
+function openHfSearchModal() {
+    document.getElementById('hfSearchModal').classList.remove('hidden');
+    document.getElementById('hfSearchInput').focus();
+}
+
+function closeHfSearchModal() {
+    document.getElementById('hfSearchModal').classList.add('hidden');
+}
+
+async function submitHfSearch() {
+    const query = document.getElementById('hfSearchInput').value.trim();
+    if (!query) return;
+    
+    document.getElementById('hfRepoLoader').classList.remove('hidden');
+    document.getElementById('hfRepoList').innerHTML = '';
+    document.getElementById('hfSelectedRepoTitle').innerText = 'Select a repository';
+    document.getElementById('hfFileList').innerHTML = `<div class="text-center py-10 text-slate-500 text-xs font-mono"><i class="fa-solid fa-file-code text-2xl mb-3 opacity-20"></i><br>No repository selected</div>`;
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/hf/search?query=${encodeURIComponent(query)}`);
+        const data = await response.json();
+        
+        document.getElementById('hfRepoLoader').classList.add('hidden');
+        
+        if (data.models && data.models.length > 0) {
+            let html = '';
+            data.models.forEach(repo => {
+                const nameParts = repo.repo_id.split('/');
+                const author = nameParts[0];
+                const modelName = nameParts.slice(1).join('/');
+                html += `
+                    <button onclick="fetchHfRepoFiles('${repo.repo_id}')" class="w-full text-left p-3 bg-[#131929]/50 hover:bg-[#1a2136] border border-slate-800 rounded-xl transition group">
+                        <div class="flex justify-between items-start">
+                            <div class="overflow-hidden">
+                                <p class="text-[10px] text-slate-500 font-mono truncate">${author}</p>
+                                <p class="text-xs font-bold text-slate-300 truncate group-hover:text-indigo-300 transition">${modelName}</p>
+                            </div>
+                            <div class="flex items-center gap-2 text-[10px] text-slate-500 shrink-0">
+                                <span><i class="fa-solid fa-download text-indigo-500/50 mr-1"></i>${repo.downloads.toLocaleString()}</span>
+                            </div>
+                        </div>
+                    </button>
+                `;
+            });
+            document.getElementById('hfRepoList').innerHTML = html;
+        } else {
+            document.getElementById('hfRepoList').innerHTML = `<div class="text-center py-10 text-slate-500 text-xs font-mono">No models found for "${query}"</div>`;
+        }
+    } catch (e) {
+        document.getElementById('hfRepoLoader').classList.add('hidden');
+        document.getElementById('hfRepoList').innerHTML = `<div class="text-center py-10 text-red-400 text-xs font-mono">Error fetching models.</div>`;
+    }
+}
+
+async function fetchHfRepoFiles(repoId) {
+    document.getElementById('hfSelectedRepoTitle').innerText = repoId;
+    document.getElementById('hfFileLoader').classList.remove('hidden');
+    document.getElementById('hfFileList').innerHTML = '';
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/hf/repo_files?repo_id=${encodeURIComponent(repoId)}`);
+        const data = await response.json();
+        
+        document.getElementById('hfFileLoader').classList.add('hidden');
+        
+        if (data.files && data.files.length > 0) {
+            let html = '';
+            data.files.forEach(file => {
+                const sizeMb = (file.size / (1024 * 1024)).toFixed(1);
+                // Try to extract quantization string (e.g. Q4_K_M)
+                const quantMatch = file.filename.match(/(Q[0-9]_[K_]?[A-Z0-9_]*|IQ[0-9]_[K_]?[A-Z0-9_]*|fp16|bf16)/i);
+                const quantBadge = quantMatch ? `<span class="bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-1.5 py-0.5 rounded text-[9px] font-bold font-mono ml-2">${quantMatch[0].toUpperCase()}</span>` : '';
+                
+                html += `
+                    <div class="p-3 bg-[#131929]/50 border border-slate-800 rounded-xl flex items-center justify-between gap-3 hover:border-slate-700 transition">
+                        <div class="flex-1 overflow-hidden flex items-center">
+                            <i class="fa-regular fa-file-lines text-slate-500 mr-2 text-sm"></i>
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center">
+                                    <p class="text-xs font-mono text-slate-300 truncate" title="${file.filename}">${file.filename}</p>
+                                    ${quantBadge}
+                                </div>
+                                <p class="text-[10px] text-slate-500 mt-0.5">${sizeMb} MB</p>
+                            </div>
+                        </div>
+                        <button onclick="selectHfFileAndLoad('${repoId}', '${file.filename}')" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-[10px] font-bold tracking-wide transition shrink-0 shadow-md">
+                            Select
+                        </button>
+                    </div>
+                `;
+            });
+            document.getElementById('hfFileList').innerHTML = html;
+        } else {
+            document.getElementById('hfFileList').innerHTML = `<div class="text-center py-10 text-slate-500 text-xs font-mono">No .gguf files found in this repo.</div>`;
+        }
+    } catch (e) {
+        document.getElementById('hfFileLoader').classList.add('hidden');
+        document.getElementById('hfFileList').innerHTML = `<div class="text-center py-10 text-red-400 text-xs font-mono">Error fetching files.</div>`;
+    }
+}
+
+function selectHfFileAndLoad(repoId, filename) {
+    const fullPath = `${repoId}/${filename}`;
+    document.getElementById('modelInput').value = fullPath;
+    closeHfSearchModal();
+    // Optional: flash or pulse the input so the user notices
+    const inputEl = document.getElementById('modelInput');
+    inputEl.classList.add('ring-2', 'ring-indigo-500');
+    setTimeout(() => {
+        inputEl.classList.remove('ring-2', 'ring-indigo-500');
+    }, 1000);
+}
