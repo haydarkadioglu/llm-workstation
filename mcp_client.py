@@ -317,6 +317,7 @@ class HttpMcpClient:
         self.tools = []
         self.msg_counter = 1
         self.lock = threading.Lock()
+        self.session_id = None
         
     def connect(self):
         # Handshake: initialize
@@ -325,6 +326,16 @@ class HttpMcpClient:
             "capabilities": {},
             "clientInfo": {"name": "llm-workstation-client", "version": "1.0.0"}
         })
+        
+        # Capture sessionId
+        if init_resp:
+            self.session_id = init_resp.get("sessionId")
+            if not self.session_id:
+                result = init_resp.get("result")
+                if isinstance(result, dict):
+                    self.session_id = result.get("sessionId")
+            if self.session_id:
+                print(f"[MCP HTTP Client] Captured Mcp-Session-Id: {self.session_id}")
         
         # Handshake: initialized
         self.send_notification("notifications/initialized", {})
@@ -349,6 +360,9 @@ class HttpMcpClient:
             payload["params"] = params
             
         headers = {"Content-Type": "application/json"}
+        if self.session_id:
+            headers["Mcp-Session-Id"] = self.session_id
+            
         try:
             response = requests.post(self.url, json=payload, headers=headers, timeout=15)
             if response.status_code == 200:
@@ -368,6 +382,9 @@ class HttpMcpClient:
             payload["params"] = params
             
         headers = {"Content-Type": "application/json"}
+        if self.session_id:
+            headers["Mcp-Session-Id"] = self.session_id
+            
         try:
             requests.post(self.url, json=payload, headers=headers, timeout=5)
         except Exception as e:
