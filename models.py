@@ -463,12 +463,31 @@ class ModelManager:
                         self.status = f"Loading GGUF into memory..."
                         print(f"[ModelManager] Instantiating llama_cpp.Llama from {local_file}")
                         import llama_cpp
-                        self.model = llama_cpp.Llama(
-                            model_path=local_file,
-                            n_gpu_layers=-1, # All layers to GPU
-                            n_ctx=8192,
-                            verbose=False
-                        )
+                        
+                        # Heuristics for chat_format if tokenizer.chat_template is missing/broken
+                        chat_format = None
+                        lower_id = model_id.lower()
+                        if "gemma" in lower_id:
+                            chat_format = "gemma"
+                        elif "llama-3" in lower_id or "llama3" in lower_id:
+                            chat_format = "llama-3"
+                        elif "phi-3" in lower_id or "phi3" in lower_id:
+                            chat_format = "phi-3"
+                        elif "qwen" in lower_id:
+                            chat_format = "chatml"
+                            
+                        kwargs = {
+                            "model_path": local_file,
+                            "n_gpu_layers": -1, # All layers to GPU
+                            "n_ctx": 8192,
+                            "verbose": False
+                        }
+                        
+                        if chat_format:
+                            print(f"[ModelManager] Applying chat_format='{chat_format}' based on model name heuristic.")
+                            kwargs["chat_format"] = chat_format
+                            
+                        self.model = llama_cpp.Llama(**kwargs)
                         self.model_id = model_id
                         self.status = "Ready"
                         self.loading_progress = 100
@@ -965,7 +984,7 @@ class ModelManager:
                             
                     stream = self.model.create_chat_completion(
                         messages=clean_msgs,
-                        temperature=temperature if temperature > 0.0 else 1.0,
+                        temperature=temperature if temperature > 0.0 else 0.01,
                         top_p=top_p,
                         max_tokens=max_tokens,
                         stream=True
