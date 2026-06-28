@@ -694,6 +694,8 @@ class ModelManager:
                 # Strict, token-efficient system instruction to prevent conversational pre-phrases and context bloat
                 tool_instructions = (
                     "\n\n[SYSTEM: Agent Mode Active]\n"
+                    "If the user's query is a simple greeting (like 'hi', 'hello', 'selam', 'nasılsın') or conversational chat that does not require external data, you MUST NOT call any tools. Just reply directly in conversation.\n"
+                    "Only call a tool when it is absolutely necessary to answer the user's query.\n"
                     "If you need to call a tool or search the web, you MUST output ONLY the JSON code block. "
                     "Do NOT write any conversation, thoughts, or introduction before the JSON block (do NOT say 'I will search' or 'Lütfen bekleyin'). "
                     "Output the JSON block immediately in this exact format:\n"
