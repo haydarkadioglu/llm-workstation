@@ -775,15 +775,31 @@ class ModelManager:
                     
                     yield f"📊 **[Tool Result: `{result_str}`]**\n\n"
                     
-                    # Log histories
-                    active_messages.append({"role": "assistant", "content": generated_text})
-                    active_messages.append({"role": "user", "content": f"Tool output from '{tool_name}': {result_str}"})
+                    # Strip the raw tool call JSON block from the assistant message before adding to history.
+                    # If we leave the JSON block in, the LLM will see it next iteration and re-call the tool.
+                    clean_assistant_text = re.sub(r"```(?:json)?\s*\{[\s\S]*?\}\s*```", "", generated_text).strip()
+                    # Also strip any bare JSON brace block that might remain
+                    clean_assistant_text = re.sub(r"\{[\s\S]*?\"tool\"[\s\S]*?\}", "", clean_assistant_text).strip()
+                    if not clean_assistant_text:
+                        clean_assistant_text = f"[Called tool: {tool_name}]"
+                    
+                    # Append cleaned assistant turn + tool result with explicit stop instruction
+                    active_messages.append({"role": "assistant", "content": clean_assistant_text})
+                    active_messages.append({
+                        "role": "user",
+                        "content": (
+                            f"[TOOL RESULT for '{tool_name}']\n{result_str}\n\n"
+                            "[SYSTEM: The tool has finished. Do NOT call any more tools. "
+                            "Use the result above to compose your final answer to the user directly and clearly.]"
+                        )
+                    })
                     continue
                 except Exception as tool_err:
                     yield f"\n❌ **[Tool Execution Failed: {str(tool_err)}]**\n"
                     break
             else:
                 break
+
 
     def _execute_inference_step(self, messages: List[Dict[str, Any]], temperature: float, top_p: float, max_tokens: int):
         with self.lock:
