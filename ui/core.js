@@ -680,9 +680,22 @@ async function deleteModelFromCache(repoId) {
     }
 }
 // --- Hugging Face Search Modal Logic ---
+let hfSearchTimeout = null;
+function debounceHfSearch() {
+    clearTimeout(hfSearchTimeout);
+    hfSearchTimeout = setTimeout(() => {
+        submitHfSearch();
+    }, 500);
+}
+
 function openHfSearchModal() {
     document.getElementById('hfSearchModal').classList.remove('hidden');
     document.getElementById('hfSearchInput').focus();
+    
+    // Auto trigger search if list is unpopulated
+    if (document.getElementById('hfRepoList').innerHTML.includes('Enter a query') || document.getElementById('hfSearchInput').value.trim() === "") {
+        submitHfSearch();
+    }
 }
 
 function closeHfSearchModal() {
@@ -691,7 +704,7 @@ function closeHfSearchModal() {
 
 async function submitHfSearch() {
     const query = document.getElementById('hfSearchInput').value.trim();
-    if (!query) return;
+
     
     document.getElementById('hfRepoLoader').classList.remove('hidden');
     document.getElementById('hfRepoList').innerHTML = '';
