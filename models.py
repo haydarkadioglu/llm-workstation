@@ -1144,14 +1144,35 @@ def get_cached_models() -> list:
         cache_info = scan_cache_dir()
         models = []
         for repo in cache_info.repos:
-            # We want to format size in GB
-            size_gb = repo.size_on_disk / (1024 ** 3)
-            models.append({
-                "repo_id": repo.repo_id,
-                "size_gb": round(size_gb, 2),
-                "repo_path": repo.repo_path,
-                "nb_files": repo.nb_files
-            })
+            # Check for GGUF files and config
+            gguf_files = []
+            has_config = False
+            for rev in repo.revisions:
+                for f in rev.files:
+                    if f.file_name.endswith('.gguf'):
+                        gguf_files.append(f)
+                    if f.file_name == "config.json":
+                        has_config = True
+            
+            # If there are GGUF files, list each one individually
+            if gguf_files:
+                for gf in gguf_files:
+                    models.append({
+                        "repo_id": f"{repo.repo_id}/{gf.file_name}",
+                        "size_gb": round(gf.size_on_disk / (1024 ** 3), 2) if hasattr(gf, 'size_on_disk') else 0,
+                        "repo_path": repo.repo_path,
+                        "nb_files": 1
+                    })
+            
+            # If it has a config.json or it's not exclusively GGUF, list the base repo
+            if has_config or not gguf_files:
+                size_gb = repo.size_on_disk / (1024 ** 3)
+                models.append({
+                    "repo_id": repo.repo_id,
+                    "size_gb": round(size_gb, 2),
+                    "repo_path": repo.repo_path,
+                    "nb_files": repo.nb_files
+                })
         return models
     except Exception as e:
         print(f"[Cache Scanner] Failed to scan HF cache: {e}")
@@ -1162,8 +1183,16 @@ def delete_cached_model(repo_id: str) -> bool:
         import shutil
         from huggingface_hub import scan_cache_dir
         cache_info = scan_cache_dir()
+        
+        # Extract base repo_id if the UI passed repo_id/filename.gguf
+        parts = repo_id.split("/")
+        if len(parts) >= 3 and parts[-1].endswith(".gguf"):
+            base_repo_id = "/".join(parts[:-1])
+        else:
+            base_repo_id = repo_id
+            
         for repo in cache_info.repos:
-            if repo.repo_id == repo_id:
+            if repo.repo_id == base_repo_id:
                 print(f"[Cache Scanner] Deleting directory recursively: {repo.repo_path}")
                 shutil.rmtree(repo.repo_path)
                 return True
