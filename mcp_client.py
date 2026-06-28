@@ -9,7 +9,7 @@ import platform
 import threading
 import subprocess
 import requests
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 
 class StdioMcpClient:
     def __init__(self, command: str, args: List[str]):
@@ -156,10 +156,13 @@ class SseMcpClient:
         self.thread.start()
         
         # Wait for SSE session endpoint setup
-        timeout = 25
+        timeout = 8
         start = time.time()
         while not self.session_url:
+            if not self.active:
+                raise ConnectionError("SSE reader connection broke or rejected by server")
             if time.time() - start > timeout:
+                self.active = False
                 raise TimeoutError("Timeout establishing SSE connection channel")
             time.sleep(0.1)
             
@@ -183,37 +186,40 @@ class SseMcpClient:
             
     def _read_sse(self):
         try:
-            headers = {'User-Agent': 'Mozilla/5.0'}
+            # Set standard event-stream Accept headers to satisfy SSE handshake specs
+            headers = {
+                'User-Agent': 'Mozilla/5.0',
+                'Accept': 'text/event-stream'
+            }
             
-            # Check if this URL is known to require POST
             use_post_directly = self.url in POST_PREFERRING_URLS
-            
             response = None
+            
             if not use_post_directly:
                 try:
-                    # Fail-fast on GET within 3s to allow quick POST fallback if server hangs on GET
                     response = requests.get(self.url, headers=headers, stream=True, timeout=3)
                     if response.status_code != 200:
-                        print(f"[SSE Client] GET returned status {response.status_code}, falling back to POST...")
                         use_post_directly = True
-                except Exception as get_err:
-                    print(f"[SSE Client Warning] GET request failed/timed out: {get_err}. Trying POST fallback...")
+                except Exception:
                     use_post_directly = True
             
             if use_post_directly:
-                print(f"[SSE Client] Connecting to {self.url} using POST...")
                 post_headers = headers.copy()
                 post_headers["Content-Type"] = "application/json"
+                # Send standard JSON-RPC tools/list payload to satisfy body validation checks
                 init_payload = {
                     "jsonrpc": "2.0",
                     "method": "tools/list",
                     "id": 1
                 }
-                response = requests.post(self.url, headers=post_headers, json=init_payload, stream=True, timeout=20)
+                response = requests.post(self.url, headers=post_headers, json=init_payload, stream=True, timeout=10)
                 if response.status_code == 200:
                     POST_PREFERRING_URLS.add(self.url)
-                    print(f"[SSE Client Cache] Cached {self.url} as POST-preferring endpoint.")
             
+            if not response or response.status_code != 200:
+                self.active = False
+                return
+                
             current_event = None
             for line in response.iter_lines():
                 if not self.active:
@@ -293,6 +299,76 @@ class SseMcpClient:
         self.active = False
         self.session_url = None
 
+class HttpMcpClient:
+    def __init__(self, url: str):
+        self.url = url
+        self.tools = []
+        self.msg_counter = 1
+        self.lock = threading.Lock()
+        
+    def connect(self):
+        # Handshake: initialize
+        init_resp = self.send_message("initialize", {
+            "protocolVersion": "2024-11-05",
+            "capabilities": {},
+            "clientInfo": {"name": "llm-workstation-client", "version": "1.0.0"}
+        })
+        
+        # Handshake: initialized
+        self.send_notification("notifications/initialized", {})
+        
+        # Retrieve tools
+        resp_tools = self.send_message("tools/list", {})
+        if resp_tools and "result" in resp_tools:
+            self.tools = resp_tools["result"].get("tools", [])
+            print(f"[MCP HTTP Client] Found tools: {[t['name'] for t in self.tools]}")
+            
+    def send_message(self, method: str, params: dict) -> Optional[dict]:
+        with self.lock:
+            msg_id = self.msg_counter
+            self.msg_counter += 1
+            
+        payload = {
+            "jsonrpc": "2.0",
+            "id": msg_id,
+            "method": method,
+            "params": params
+        }
+        headers = {"Content-Type": "application/json"}
+        try:
+            response = requests.post(self.url, json=payload, headers=headers, timeout=15)
+            if response.status_code == 200:
+                return response.json()
+            else:
+                print(f"[HTTP Client Error] Server returned {response.status_code}: {response.text}")
+        except Exception as e:
+            print(f"[HTTP Client Error] Request failed: {e}")
+        return None
+        
+    def send_notification(self, method: str, params: dict):
+        payload = {
+            "jsonrpc": "2.0",
+            "method": method,
+            "params": params
+        }
+        headers = {"Content-Type": "application/json"}
+        try:
+            requests.post(self.url, json=payload, headers=headers, timeout=5)
+        except Exception as e:
+            print(f"[HTTP Client Error] Notification failed: {e}")
+            
+    def call_tool(self, name: str, arguments: dict) -> dict:
+        resp = self.send_message("tools/call", {
+            "name": name,
+            "arguments": arguments
+        })
+        if resp and "result" in resp:
+            return resp["result"]
+        return {"error": "Failed calling remote HTTP tool"}
+        
+    def disconnect(self):
+        pass
+
 # Registry management
 connected_clients = {}
 
@@ -305,13 +381,35 @@ def connect_external_mcp(config: dict) -> dict:
         args_str = config.get("args", "")
         args = shlex.split(args_str) if isinstance(args_str, str) else args_str
         client = StdioMcpClient(command, args)
-    elif conn_type == "sse":
+        client.connect()
+    elif conn_type == "sse" or conn_type == "http":
         url = config.get("url")
-        client = SseMcpClient(url)
+        is_sse = True
+        try:
+            # Quick headers ping to check if server replies with SSE text/event-stream or plain JSON
+            test_headers = {'User-Agent': 'Mozilla/5.0', 'Accept': 'text/event-stream'}
+            test_resp = requests.get(url, headers=test_headers, timeout=2)
+            if "application/json" in test_resp.headers.get("Content-Type", ""):
+                is_sse = False
+        except Exception:
+            pass
+            
+        if is_sse:
+            print(f"[MCP Connector] Attempting SSE transport on {url}")
+            client = SseMcpClient(url)
+            try:
+                client.connect()
+            except Exception as sse_err:
+                print(f"[MCP Connector Warning] SSE connection failed: {sse_err}. Falling back to direct JSON-RPC HTTP...")
+                client = HttpMcpClient(url)
+                client.connect()
+        else:
+            print(f"[MCP Connector] Attempting direct HTTP JSON-RPC transport on {url}")
+            client = HttpMcpClient(url)
+            client.connect()
     else:
         raise ValueError(f"Unknown transport type: {conn_type}")
         
-    client.connect()
     connected_clients[conn_id] = {
         "id": conn_id,
         "type": conn_type,
