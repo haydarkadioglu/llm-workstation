@@ -21,9 +21,22 @@ def _drop_oldest(messages: List[dict]) -> bool:
     start = 1 if messages and messages[0]["role"] == "system" else 0
     if len(messages) - start <= 1:
         return False
+    if not any(m["role"] == "user" for m in messages[start + 1 :]):
+        return _drop_oldest_step(messages, start)
     del messages[start]
     while len(messages) - start > 1 and messages[start]["role"] != "user":
         del messages[start]
+    return True
+
+
+def _drop_oldest_step(messages: List[dict], start: int) -> bool:
+    """One user turn with a long tool run: keep it, drop the run's oldest step."""
+    end = start + 2
+    while end < len(messages) and messages[end]["role"] == "tool":
+        end += 1
+    if end >= len(messages):
+        return False  # only the latest step is left
+    del messages[start + 1 : end]
     return True
 
 

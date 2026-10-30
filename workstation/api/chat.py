@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict
 
-from ..agent.builtin_tools import WEB_SEARCH, web_search
+from ..agent.builtin_tools import WEB_SEARCH, tool_runner
 from ..agent.loop import DEFAULT_MAX_STEPS, run_agent
 from ..config import DATA_DIR, read_json, write_json
 from ..engine.base import GenerationParams
@@ -36,15 +36,6 @@ class ChatPayload(BaseModel):
     stop: List[str] = []
 
 
-def _tool_runner(registry):
-    def run(name: str, arguments: dict) -> dict:
-        if name == WEB_SEARCH["function"]["name"]:
-            return web_search(arguments.get("query", ""))
-        return registry.call(name, arguments)
-
-    return run
-
-
 @router.post("/api/chat")
 async def chat(payload: ChatPayload, request: Request):
     manager = request.app.state.manager
@@ -52,9 +43,12 @@ async def chat(payload: ChatPayload, request: Request):
     if not manager.backend:
         raise HTTPException(status_code=503, detail="No chat model is loaded.")
 
+    skills = request.app.state.skills.prompt(manager.backend.capabilities.context_length)
+    system = "\n\n".join(part for part in (payload.system_prompt, skills) if part)
+
     messages: List[Dict[str, Any]] = []
-    if payload.system_prompt:
-        messages.append({"role": "system", "content": payload.system_prompt})
+    if system:
+        messages.append({"role": "system", "content": system})
     messages.extend(m.model_dump() for m in payload.messages)
 
     tools = [WEB_SEARCH] + registry.openai_tools() if payload.agent_mode else []
@@ -73,7 +67,7 @@ async def chat(payload: ChatPayload, request: Request):
     async def events():
         try:
             async for event in iterate_in_thread(
-                lambda: run_agent(manager, messages, tools, _tool_runner(registry), params, cancel, payload.max_steps),
+                lambda: run_agent(manager, messages, tools, tool_runner(registry), params, cancel, payload.max_steps),
                 cancel,
             ):
                 yield sse(event)

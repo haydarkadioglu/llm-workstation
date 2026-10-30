@@ -63,11 +63,13 @@ def _strip_fence(text: str) -> str:
 
 
 def _repair_braces(text: str) -> str:
-    """Qwen 2.5 often opens with '{{', and small models drop the last '}'."""
+    """Qwen 2.5 often writes '{{ ... }}}}', and small models drop the last '}'."""
     if text.startswith("{{"):
         text = "{" + text.lstrip("{ \n")
-    missing = text.count("{") - text.count("}")
-    return text + "}" * missing if missing > 0 else text
+    balance = text.count("{") - text.count("}")
+    if balance < 0 and text.endswith("}" * -balance):
+        return text[:balance]
+    return text + "}" * balance if balance > 0 else text
 
 
 def _decode_values(text: str) -> List[Any]:

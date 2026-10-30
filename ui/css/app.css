@@ -252,6 +252,18 @@ dialog::backdrop { background: rgb(0 0 0 / .45); }
 .gallery figcaption { display: flex; gap: 8px; align-items: center; margin-top: 6px; font-size: 13px; color: var(--muted); }
 .gallery figcaption span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+.columns.tasks { grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); align-items: start; margin-top: 0; }
+.task-row { cursor: pointer; background: none; border: none; border-bottom: 1px solid var(--border); border-radius: 0; width: 100%; text-align: left; white-space: normal; }
+.task-row.active .name { color: var(--accent); }
+.plan-step { font-size: 14px; }
+.plan-step.done { color: var(--muted); text-decoration: line-through; }
+.task-note { font-size: 14px; margin: 2px 0; }
+.task-log { max-height: 420px; overflow-y: auto; font-size: 13px; }
+.log-entry { padding: 4px 0; border-top: 1px solid var(--border); overflow-wrap: anywhere; white-space: pre-wrap; }
+.log-entry.failed { color: var(--danger); }
+.log-entry .muted { font-size: 12px; }
+a.button { padding: 7px 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 14px; text-decoration: none; }
+
 #toasts { position: fixed; right: 16px; bottom: 16px; display: flex; flex-direction: column; gap: 8px; z-index: 10; }
 .toast { max-width: 340px; padding: 8px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; font-size: 14px; box-shadow: 0 2px 8px rgb(0 0 0 / .18); }
 .toast.error { border-color: var(--danger); }
@@ -274,5 +286,5 @@ dialog::backdrop { background: rgb(0 0 0 / .45); }
   .status { margin-left: auto; }
   .chat-list { display: none; }
   .params { position: fixed; inset: 0 0 0 auto; width: min(300px, 90vw); background: var(--bg); z-index: 5; }
-  .columns { grid-template-columns: 1fr; }
+  .columns, .columns.tasks { grid-template-columns: 1fr; }
 }

@@ -9,10 +9,14 @@ from fastapi.staticfiles import StaticFiles
 from mcp.server.transport_security import TransportSecuritySettings
 
 from .api import chat, media, mcp, models, openai, system
+from .api import skills as skills_api
+from .api import tasks as tasks_api
 from .config import Settings
 from .engine.manager import ModelManager
 from .mcp.registry import McpRegistry
 from .mcp.server import build_server
+from .skills.store import SkillStore
+from .tasks.runner import TaskManager
 from .telemetry import close_telemetry
 from .tunnel import start_cloudflare_tunnel
 
@@ -28,9 +32,13 @@ def create_app(settings: Settings, registry: McpRegistry = None) -> FastAPI:
         transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False)
     )
 
+    skills = SkillStore()
+    tasks = TaskManager(manager, registry, skills)
+
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         registry.start()
+        tasks.start()
         if settings.tunnel:
             start_cloudflare_tunnel(settings.port)
         if settings.model:
@@ -41,6 +49,7 @@ def create_app(settings: Settings, registry: McpRegistry = None) -> FastAPI:
             threading.Thread(target=initial_load, daemon=True).start()
         async with mcp_server.session_manager.run():
             yield
+        tasks.stop()
         registry.stop()
         manager.unload()
         close_telemetry()
@@ -48,13 +57,15 @@ def create_app(settings: Settings, registry: McpRegistry = None) -> FastAPI:
     app = FastAPI(title="LLM Workstation", lifespan=lifespan)
     app.state.manager = manager
     app.state.registry = registry
+    app.state.skills = skills
+    app.state.tasks = tasks
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    for module in (system, models, chat, openai, media, mcp):
+    for module in (system, models, chat, openai, media, mcp, skills_api, tasks_api):
         app.include_router(module.router)
     app.router.routes.extend(mcp_app.routes)
     app.mount("/", StaticFiles(directory=UI_DIR, html=True), name="ui")

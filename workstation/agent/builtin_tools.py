@@ -20,6 +20,15 @@ WEB_SEARCH = {
 }
 
 
+def tool_runner(registry):
+    def run(name: str, arguments: dict) -> dict:
+        if name == WEB_SEARCH["function"]["name"]:
+            return web_search(arguments.get("query", ""))
+        return registry.call(name, arguments)
+
+    return run
+
+
 def web_search(query: str) -> dict:
     url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(query)}"
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})

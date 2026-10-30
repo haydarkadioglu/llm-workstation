@@ -64,6 +64,12 @@ def test_doubled_opening_brace_from_qwen_is_repaired():
     assert not parser.errors
 
 
+def test_extra_closing_braces_are_repaired():
+    calls, error = parse_calls('{{"name": "get_price", "arguments": {"sku": "A"}}}}')
+    assert error is None
+    assert calls[0].arguments == {"sku": "A"}
+
+
 def test_missing_closing_brace_is_repaired():
     calls, error = parse_calls('{"name": "get_price", "arguments": {"sku": "A"}')
     assert calls[0].name == "get_price" and error is None

@@ -79,8 +79,12 @@ def run_agent(
     params: GenerationParams,
     cancel: threading.Event,
     max_steps: int = DEFAULT_MAX_STEPS,
+    prepare: Callable[[List[dict]], List[dict]] = lambda messages: messages,
 ) -> Iterator[dict]:
-    """Generate, execute any tool calls and repeat until the model answers."""
+    """Generate, execute any tool calls and repeat until the model answers.
+
+    `prepare` rewrites the messages before each step without touching the history.
+    """
     history = list(messages)
     capabilities = manager.backend.capabilities
     native = capabilities.tools or not tools
@@ -91,12 +95,11 @@ def run_agent(
     for step in range(max_steps + 1):
         # Last round has no tools, which forces a written answer out of the model.
         active = tools if step < max_steps else None
-        if not active:
-            prompt_messages = history
-        elif native:
-            prompt_messages = with_tool_guidance(history)
-        else:
-            prompt_messages = legacy_messages(history, active)
+        prompt_messages = prepare(history)
+        if active and native:
+            prompt_messages = with_tool_guidance(prompt_messages)
+        elif active:
+            prompt_messages = legacy_messages(prompt_messages, active)
         template_tools = active if native else None
 
         fitted, used, dropped = fit_context(

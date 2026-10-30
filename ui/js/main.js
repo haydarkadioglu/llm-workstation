@@ -4,6 +4,8 @@ import { initMedia } from "./media.js";
 import { initModels, onTelemetry } from "./models.js";
 import { initParams } from "./params.js";
 import { initSettings, renderSystem } from "./settings.js";
+import { initSkills } from "./skills.js";
+import { initTasks } from "./tasks.js";
 
 function route() {
   const page = location.hash.slice(1) || "chat";
@@ -26,4 +28,6 @@ initModels();
 initMcp();
 initMedia();
 initSettings();
+initTasks();
+initSkills();
 initChat();
