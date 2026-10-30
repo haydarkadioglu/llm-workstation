@@ -83,6 +83,24 @@ def test_chatml_fallback_renders():
     assert out.endswith("<|im_start|>assistant\n")
 
 
+def test_download_progress_is_tracked_without_a_terminal():
+    import tqdm
+
+    from workstation.hub.progress import track_downloads
+
+    class State:
+        status = ""
+        loading_progress = 0
+        loading_speed = ""
+
+    state = State()
+    with track_downloads(state):
+        bar = tqdm.tqdm(total=200, disable=True)
+        bar.update(50)
+    assert state.loading_progress == 25
+    assert state.status.startswith("Downloading: 25%")
+
+
 def test_merge_videos_keeps_brightness():
     imageio = pytest.importorskip("imageio.v2")
     pytest.importorskip("imageio_ffmpeg")

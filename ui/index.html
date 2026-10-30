@@ -1,1251 +1,255 @@
-
-<!DOCTYPE html>
-<html lang="en" class="h-full">
+<!doctype html>
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LLM Workstation</title>
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- FontAwesome Icons -->
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: {
-                        sans: ['Inter', 'sans-serif'],
-                        mono: ['JetBrains Mono', 'monospace'],
-                    }
-                }
-            }
-        }
-    </script>
-    <style>
-/* INJECT_CSS */
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LLM Workstation</title>
+  <link rel="stylesheet" href="css/app.css">
+  <script src="vendor/marked.min.js"></script>
+  <script src="vendor/purify.min.js"></script>
+  <script src="vendor/highlight.min.js"></script>
+  <script type="module" src="js/main.js"></script>
 </head>
-<body class="h-full text-slate-100 flex flex-col font-sans antialiased overflow-hidden">
-
-    <!-- Custom Toast Notification Container -->
-    <div id="toast-container"></div>
-
-    <!-- Header bar with Navigation -->
-    <header class="flex items-center justify-between px-6 py-4 bg-[#111625]/90 border-b border-slate-800 backdrop-blur-md z-10 shrink-0">
-        <div class="flex items-center gap-3">
-            <div class="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 shadow-lg shadow-indigo-500/20">
-                <i class="fa-solid fa-microchip text-white text-lg"></i>
-            </div>
-            <div>
-                <h1 class="text-lg font-bold tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">LLM WORKSTATION</h1>
-                <p class="text-[10px] text-slate-400 font-mono">Status: <span id="headerStatus" class="text-yellow-500">Checking...</span></p>
-            </div>
-            
-            <!-- Navigation Links -->
-            <nav class="hidden md:flex items-center gap-1.5 ml-8 border-l border-slate-800 pl-8">
-                <a href="#chat" id="chatTab" class="px-3.5 py-1.5 rounded-lg text-sm font-medium transition duration-200">
-                    <i class="fa-regular fa-comments mr-1.5"></i>Chat
-                </a>
-                <a href="#image" id="imageTab" class="px-3.5 py-1.5 rounded-lg text-sm font-medium transition duration-200">
-                    <i class="fa-regular fa-image mr-1.5"></i>Image Models
-                </a>
-                <a href="#video" id="videoTab" class="px-3.5 py-1.5 rounded-lg text-sm font-medium transition duration-200">
-                    <i class="fa-solid fa-video mr-1.5"></i>Video Models
-                </a>
-                <a href="#dashboard" id="dashboardTab" class="px-3.5 py-1.5 rounded-lg text-sm font-medium transition duration-200">
-                    <i class="fa-solid fa-chart-line mr-1.5"></i>Dashboard
-                </a>
-                <a href="#mcp" id="mcpTab" class="px-3.5 py-1.5 rounded-lg text-sm font-medium transition duration-200">
-                    <i class="fa-solid fa-network-wired mr-1.5"></i>MCP Server
-                </a>
-                <a href="#settings" id="settingsTab" class="px-3.5 py-1.5 rounded-lg text-sm font-medium transition duration-200">
-                    <i class="fa-solid fa-gear mr-1.5"></i>Settings
-                </a>
-            </nav>
-        </div>
-        
-        <!-- Cloudflare Tunnel Status -->
-        <div class="flex items-center gap-2.5">
-            <div id="cfStatusLight" class="w-2.5 h-2.5 rounded-full bg-slate-600 animate-pulse"></div>
-            <div class="bg-[#181E32] border border-slate-800 rounded-lg py-1.5 px-3 flex items-center gap-2 max-w-sm sm:max-w-md md:max-w-lg">
-                <span class="text-xs font-mono text-slate-400">Tunnel:</span>
-                <span id="cfUrl" class="text-xs font-mono text-indigo-400 truncate max-w-[150px] sm:max-w-[250px] md:max-w-[350px]">Detecting...</span>
-                <button onclick="copyTunnelUrl()" class="text-slate-400 hover:text-white transition ml-1" title="Copy URL">
-                    <i class="fa-regular fa-copy text-xs"></i>
-                </button>
-            </div>
-        </div>
-    </header>
-
-    <!-- Main Workspace -->
-    <div class="flex flex-1 overflow-hidden">
-        
-        <!-- Left Sidebar: Controls & Telemetry -->
-        <aside id="mainSidebar" class="w-80 bg-[#0E1321] border-r border-slate-800/80 p-5 flex flex-col gap-6 overflow-y-auto shrink-0">
-            
-            <!-- Project Header Attribution -->
-            <div class="flex flex-col font-sans -mb-1">
-                <span class="text-xs font-bold text-indigo-400 font-mono tracking-wider">haydarkadioglu/llm-workstation</span>
-                <a href="https://haydarkadioglu.com" target="_blank" class="text-[9px] text-slate-500 hover:text-indigo-400 font-semibold uppercase tracking-widest mt-0.5 transition duration-150 decoration-slate-500 hover:underline">developed by haydarkadioglu.com</a>
-            </div>
-            
-            <!-- VRAM & GPU Monitoring -->
-            <div class="bg-[#131929]/50 border border-slate-800/60 rounded-2xl p-4 flex flex-col items-center">
-                <h3 class="text-xs font-semibold text-slate-400 tracking-wider uppercase mb-4 self-start">GPU Memory Usage</h3>
-                
-                <!-- Circular VRAM gauge -->
-                <div class="relative flex items-center justify-center mb-3">
-                    <svg class="w-32 h-32 transform -rotate-90">
-                        <circle cx="64" cy="64" r="50" stroke="#1d2436" stroke-width="8" fill="transparent" />
-                        <circle id="vramCircle" cx="64" cy="64" r="50" stroke="url(#vramGradient)" stroke-width="8" fill="transparent"
-                                stroke-dasharray="314.15" stroke-dashoffset="314.15" stroke-linecap="round" class="transition-all duration-700" />
-                        <defs>
-                            <linearGradient id="vramGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                                <stop offset="0%" stop-color="#6366f1" />
-                                <stop offset="50%" stop-color="#a855f7" />
-                                <stop offset="100%" stop-color="#ec4899" />
-                            </linearGradient>
-                        </defs>
-                    </svg>
-                    <div class="absolute text-center">
-                        <span id="vramPct" class="text-2xl font-bold text-white font-mono">0%</span>
-                        <p class="text-[9px] text-slate-400 font-semibold tracking-wider">VRAM USED</p>
-                    </div>
-                </div>
-                
-                <div class="w-full space-y-2 mt-2 text-xs font-mono">
-                    <div class="flex justify-between text-slate-400 border-b border-slate-800/40 pb-1.5">
-                        <span>GPU Device:</span>
-                        <span id="gpuName" class="text-slate-200 truncate max-w-[150px]">Detecting...</span>
-                    </div>
-                    <div class="flex justify-between text-slate-400 border-b border-slate-800/40 pb-1.5">
-                        <span>Used/Total:</span>
-                        <span id="vramUsedTotal" class="text-slate-200">0 / 0 MB</span>
-                    </div>
-                    <div class="flex justify-between text-slate-400 border-b border-slate-800/40 pb-1.5">
-                        <span>Active Speed:</span>
-                        <span id="tokenSpeed" class="text-emerald-400 font-bold">0.0 tokens/s</span>
-                    </div>
-                    <div class="pt-2 w-full">
-                        <div class="flex justify-between text-slate-400 mb-1">
-                            <span>Disk Space:</span>
-                            <span id="diskUsedTotal" class="text-slate-300 font-semibold text-[10px]">0 / 0 GB</span>
-                        </div>
-                        <div class="w-full bg-slate-800 rounded-full h-1.5">
-                            <div id="diskProgressBar" class="bg-indigo-500 h-1.5 rounded-full transition-all duration-500" style="width: 0%"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Model Management Card -->
-            <div class="space-y-4">
-                <div class="flex justify-between items-center mb-2">
-                    <h3 class="text-xs font-semibold text-slate-400 tracking-wider uppercase">Model Controller</h3>
-                    <button onclick="openHfSearchModal()" class="text-[10px] bg-indigo-600/20 text-indigo-400 hover:bg-indigo-600/40 hover:text-indigo-300 px-2 py-1 rounded transition border border-indigo-500/30 font-semibold flex items-center gap-1.5">
-                        <i class="fa-solid fa-magnifying-glass"></i> Search GGUF
-                    </button>
-                </div>
-                <p class="text-[11px] text-slate-500 mb-3 leading-relaxed">Enter a Hugging Face Hub model ID to dynamically download and load model with bitsandbytes 4-bit, or use a <b>.gguf</b> extension to load via llama.cpp</p>
-                
-                <div class="space-y-2.5">
-                    <label class="text-xs text-slate-400 font-medium">Hugging Face ID:</label>
-                    <input type="text" id="modelInput" placeholder="e.g. microsoft/Phi-3-mini-4k-instruct or repo/file.gguf"
-                           class="w-full bg-[#080B13] border border-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-slate-100 rounded-xl px-3 py-2 text-xs outline-none transition font-mono">
-                </div>
-
-                <div class="space-y-2">
-                    <div class="flex justify-between items-center">
-                        <label class="text-xs text-slate-400 font-medium">HF Token (Optional):</label>
-                        <span class="text-[9px] text-slate-500 font-mono">gated access</span>
-                    </div>
-                    <input type="password" id="modelHfTokenInput" placeholder="hf_... (overrides saved token)"
-                           class="w-full bg-[#080B13] border border-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-slate-100 rounded-xl px-3 py-2 text-xs outline-none transition font-mono">
-                </div>
-
-                <div class="grid grid-cols-2 gap-2">
-                    <button onclick="triggerModelLoad()" id="loadBtn" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold py-2 px-3 rounded-xl transition flex items-center justify-center gap-1.5 shadow-md shadow-indigo-600/10">
-                        <i class="fa-solid fa-download"></i> Load Model
-                    </button>
-                    <button onclick="unloadModel()" id="unloadBtn" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold py-2 px-3 rounded-xl transition flex items-center justify-center gap-1.5 border border-slate-700/50">
-                        <i class="fa-solid fa-trash-can"></i> Unload
-                    </button>
-                </div>
-
-                <!-- Model Load Error Alert Card -->
-                <div id="modelLoadErrorCard" class="hidden bg-red-950/20 border border-red-900/40 rounded-xl p-3.5 space-y-1.5">
-                    <div class="flex justify-between items-center text-[10px] text-red-400 font-bold uppercase tracking-wider">
-                        <span><i class="fa-solid fa-triangle-exclamation mr-1.5"></i>Load Failed</span>
-                        <button onclick="document.getElementById('modelLoadErrorCard').classList.add('hidden')" class="hover:text-red-300 transition text-[11px] px-1">
-                            <i class="fa-solid fa-xmark"></i>
-                        </button>
-                    </div>
-                    <div class="max-h-[100px] overflow-y-auto pr-1">
-                        <p id="modelLoadErrorText" class="text-[10px] text-red-350 leading-relaxed font-mono whitespace-pre-wrap break-all"></p>
-                    </div>
-                </div>
-
-                <!-- Download Progress Bar Card -->
-                <div id="downloadProgressCard" class="hidden bg-[#131929]/50 border border-indigo-500/20 rounded-xl p-3.5 space-y-2.5">
-                    <div class="flex justify-between items-center text-xs">
-                        <span class="font-medium text-slate-300">Downloading files...</span>
-                        <span id="downloadProgressPct" class="font-bold text-indigo-400 font-mono">0%</span>
-                    </div>
-                    <div class="w-full bg-slate-800 rounded-full h-2">
-                        <div id="downloadProgressBar" class="bg-gradient-to-r from-indigo-500 to-purple-500 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
-                    </div>
-                    <div class="flex justify-between text-[10px] text-slate-400 font-mono">
-                        <span>Speed: <span id="downloadSpeed" class="text-slate-200">0.0 MB/s</span></span>
-                        <span>HF Hub</span>
-                    </div>
-                </div>
-                
-                <!-- Quick Selection Chips -->
-                <div class="pt-2">
-                    <label class="text-[10px] font-semibold text-slate-500 tracking-wider uppercase block mb-2">Quick presets</label>
-                    <div class="flex flex-wrap gap-1.5">
-                        <button onclick="selectPreset('Qwen/Qwen2.5-1.5B-Instruct')" class="bg-[#131929]/70 hover:bg-[#1C243B] border border-slate-800/80 rounded-lg px-2.5 py-1 text-[10px] text-slate-400 font-mono transition">Qwen-1.5B</button>
-                        <button onclick="selectPreset('Qwen/Qwen2-VL-2B-Instruct')" class="bg-[#131929]/70 hover:bg-[#1C243B] border border-indigo-500/30 rounded-lg px-2.5 py-1 text-[10px] text-indigo-400 font-mono transition font-semibold" title="Supports Photos!"><i class="fa-regular fa-image text-[9px] mr-0.5"></i> Qwen2-VL-2B</button>
-                        <button onclick="selectPreset('microsoft/Phi-3-mini-4k-instruct')" class="bg-[#131929]/70 hover:bg-[#1C243B] border border-slate-800/80 rounded-lg px-2.5 py-1 text-[10px] text-slate-400 font-mono transition">Phi-3-3.8B</button>
-                        <button onclick="selectPreset('google/gemma-2-2b-it')" class="bg-[#131929]/70 hover:bg-[#1C243B] border border-slate-800/80 rounded-lg px-2.5 py-1 text-[10px] text-slate-400 font-mono transition">Gemma2-2B</button>
-                        <button onclick="selectPreset('Qwen/Qwen2.5-0.5B-Instruct')" class="bg-[#131929]/70 hover:bg-[#1C243B] border border-slate-800/80 rounded-lg px-2.5 py-1 text-[10px] text-slate-400 font-mono transition">Qwen-0.5B</button>
-                    </div>
-                </div>
-
-                <!-- Cached Models List -->
-                <div class="pt-3 border-t border-slate-800/60 mt-3.5">
-                    <label class="text-[10px] font-semibold text-slate-500 tracking-wider uppercase block mb-2 flex justify-between items-center">
-                        <span>Cached Models</span>
-                        <button onclick="fetchCachedModels()" class="text-indigo-400 hover:text-indigo-300 transition" title="Refresh list">
-                            <i class="fa-solid fa-rotate-right text-[9px]"></i>
-                        </button>
-                    </label>
-                    <div id="cachedModelsList" class="space-y-2 max-h-[160px] overflow-y-auto pr-1">
-                        <span class="text-[10px] text-slate-500 italic">Scanning cache...</span>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Terminal Log Overlay inside sidebar -->
-            <div class="flex-1 flex flex-col min-h-[140px] bg-[#070A10] border border-slate-800 rounded-xl p-3 overflow-hidden">
-                <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Console Logs</span>
-                <div id="consoleLogs" class="flex-1 text-[10px] font-mono text-slate-400 overflow-y-auto space-y-1 pr-1 leading-normal">
-                    <div>Station ready...</div>
-                </div>
-            </div>
-            
-        </aside>
-
-        <!-- Right Side Panel containing different View sections -->
-        <main class="flex-1 flex flex-col bg-[#0B0F19] relative overflow-hidden">
-            
-            <!-- PAGE 1: CHAT VIEW -->
-            <div id="chatView" class="flex-1 flex flex-col h-full overflow-hidden">
-                <!-- Model Header info -->
-                <div class="px-6 py-3 bg-[#0D1220]/40 border-b border-slate-800/50 flex justify-between items-center shrink-0">
-                    <div class="flex items-center gap-2.5">
-                        <span class="relative flex h-2 w-2">
-                            <span id="modelIndicatorPulse" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
-                            <span id="modelIndicator" class="relative inline-flex rounded-full h-2 w-2 bg-yellow-500"></span>
-                        </span>
-                        <span id="activeModelLabel" class="text-xs font-mono text-slate-300 font-medium">No model loaded</span>
-                        <span id="multimodalBadge" class="hidden text-[10px] font-bold tracking-wide uppercase px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">Multimodal/Vision</span>
-                    </div>
-                    
-                    <!-- Actions -->
-                    <div class="flex items-center gap-2">
-                        <!-- MCP Status Badge -->
-                        <div id="mcpChatBadge" class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800/30 border border-slate-800 text-xs text-slate-500 font-mono" title="External MCP Servers Status">
-                            <span id="mcpChatBadgeDot" class="w-1.5 h-1.5 rounded-full bg-slate-600"></span>
-                            <span id="mcpChatBadgeLabel">MCP: Not Connected</span>
-                            <i class="fa-solid fa-network-wired text-[9px] ml-0.5 opacity-60"></i>
-                        </div>
-                        <!-- Drive Status Badge -->
-                        <div id="driveChatBadge" class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800/30 border border-slate-800 text-xs text-slate-500 font-mono" title="Google Drive Storage">
-                            <span id="driveChatBadgeDot" class="w-1.5 h-1.5 rounded-full bg-slate-600"></span>
-                            <span id="driveChatBadgeLabel">Drive: —</span>
-                            <i class="fa-brands fa-google-drive text-[9px] ml-0.5 opacity-60"></i>
-                        </div>
-                        <button onclick="clearChat()" class="text-xs text-red-400 hover:text-red-300 flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-red-950/20 border border-red-900/30 hover:border-red-800 transition">
-                            <i class="fa-solid fa-trash-can text-[10px]"></i> Clear Chat
-                        </button>
-                        <button onclick="toggleParams()" class="text-xs text-slate-400 hover:text-slate-200 flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800/30 border border-slate-800 hover:border-slate-700 transition">
-                            <i class="fa-solid fa-sliders"></i> Parameters
-                        </button>
-                    </div>
-                </div>
-                
-                <div class="flex-1 flex overflow-hidden relative">
-                    <!-- Chat Window Area -->
-                    <div class="flex-1 flex flex-col h-full overflow-hidden">
-                        <div id="chatContainer" class="flex-1 p-6 overflow-y-auto space-y-4">
-                            <!-- Welcome message -->
-                            <div class="flex justify-start max-w-3xl">
-                                <div class="bg-[#121826]/80 border border-slate-800 rounded-2xl p-4 backdrop-blur-sm">
-                                    <h3 class="text-sm font-semibold text-slate-200 mb-1">Welcome to LLM Workstation</h3>
-                                    <p class="text-xs text-slate-400 leading-relaxed">
-                                        Load a model using the left sidebar to start generating text. 
-                                        For Vision/Photo tasks, select a preset model with dynamic image inputs like `Qwen/Qwen2-VL-2B-Instruct`. 
-                                        You can check VRAM usage, adjust hyperparameters, and load models in real-time. 
-                                        You can also connect external services using the OpenAI-compatible endpoint at:
-                                    </p>
-                                    <div class="mt-2.5 p-2 bg-[#070A10] border border-slate-800/80 rounded-lg text-xs font-mono text-indigo-400 flex justify-between items-center">
-                                        <span id="endpointUrl">http://localhost:8000/v1</span>
-                                        <button onclick="navigator.clipboard.writeText(document.getElementById('endpointUrl').innerText)" class="hover:text-white transition">
-                                            <i class="fa-regular fa-copy"></i>
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Selected Image Preview Panel -->
-                        <div id="imagePreviewContainer" class="hidden px-6 py-2 border-t border-slate-800/50 bg-[#0E1321]/40 flex items-center gap-3">
-                            <div class="relative w-16 h-16 rounded-xl border border-slate-700 overflow-hidden bg-slate-950 flex items-center justify-center">
-                                <img id="imagePreview" src="" class="max-w-full max-h-full object-cover">
-                                <button onclick="clearSelectedImage()" class="absolute -top-1 -right-1 bg-red-600 hover:bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center shadow-lg transition">
-                                    <i class="fa-solid fa-xmark text-[10px]"></i>
-                                </button>
-                            </div>
-                            <div class="text-xs">
-                                <p id="imageFileName" class="text-slate-300 font-medium truncate max-w-[200px]">image.png</p>
-                                <p class="text-slate-500">Image attached</p>
-                            </div>
-                        </div>
-                        
-                        <!-- Chat Input -->
-                        <div class="p-6 border-t border-slate-800/50 bg-[#0E1321]/60 backdrop-blur-md shrink-0">
-                            <div class="max-w-4xl mx-auto flex items-end gap-3 bg-[#080B13] border border-slate-800 focus-within:border-indigo-500/60 focus-within:ring-1 focus-within:ring-indigo-500/30 rounded-2xl px-4 py-3 transition">
-                                
-                                <!-- Image Upload Action Button -->
-                                <button onclick="triggerImageUpload()" class="w-8 h-8 rounded-xl bg-slate-800/40 hover:bg-slate-800/80 border border-slate-700/50 flex items-center justify-center text-slate-400 hover:text-slate-200 transition shrink-0" title="Attach image / photo">
-                                    <i class="fa-regular fa-image text-sm"></i>
-                                </button>
-                                <input type="file" id="imageInput" accept="image/*" class="hidden" onchange="handleImageSelection(event)">
-
-                                <textarea id="userInput" rows="1" placeholder="Type a message... (Shift+Enter for new line)"
-                                          class="flex-1 bg-transparent border-0 outline-none text-slate-100 text-sm resize-none focus:ring-0 max-h-40 min-h-[24px] pr-2 py-0.5"
-                                          onkeydown="handleTextareaKeydown(event)"></textarea>
-                                <div class="flex items-center gap-2">
-                                    <button onclick="stopGeneration()" id="stopBtn" class="hidden w-8 h-8 rounded-xl bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 flex items-center justify-center text-red-400 hover:text-red-300 transition" title="Stop generating">
-                                        <i class="fa-solid fa-stop text-sm animate-pulse"></i>
-                                    </button>
-                                    <button onclick="sendMessage()" id="sendBtn" class="w-9 h-9 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 flex items-center justify-center text-white shadow-lg shadow-indigo-600/10 transition">
-                                        <i class="fa-regular fa-paper-plane text-sm"></i>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Sliding Hyperparameters Panel -->
-                    <div id="paramsPanel" class="w-80 bg-[#0E1321] border-l border-slate-800/80 p-5 flex flex-col gap-5 overflow-y-auto absolute right-0 top-0 bottom-0 z-10 transition-transform transform translate-x-full duration-300 shadow-2xl shadow-black/80">
-                        <div class="flex justify-between items-center border-b border-slate-800/50 pb-3">
-                            <h3 class="text-sm font-semibold text-slate-300">Generation Parameters</h3>
-                            <button onclick="toggleParams()" class="text-slate-400 hover:text-slate-200">
-                                <i class="fa-solid fa-xmark"></i>
-                            </button>
-                        </div>
-
-                        <!-- System Prompt & Persona -->
-                        <div class="space-y-3">
-                            <div class="flex items-center justify-between">
-                                <label class="text-xs text-slate-400 font-medium">System Persona</label>
-                                <select id="personaSelect" onchange="applyPersona()" class="bg-[#080B13] border border-slate-800 text-slate-300 text-[10px] rounded-lg px-2 py-1 outline-none focus:border-indigo-500 cursor-pointer">
-                                    <option value="short">Short & Clear (Default)</option>
-                                    <option value="comprehensive">Comprehensive & Detailed</option>
-                                    <option value="coding">Expert Coder</option>
-                                    <option value="creative">Creative Writer</option>
-                                    <option value="custom">Custom</option>
-                                </select>
-                            </div>
-                            <textarea id="sysPrompt" rows="4" 
-                                      class="w-full bg-[#080B13] border border-slate-800 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 text-slate-100 rounded-xl p-2.5 text-xs outline-none transition resize-none font-sans">You are a helpful AI assistant running inside the LLM Workstation. You have access to Model Context Protocol (MCP) clients and servers to invoke external tools (such as web_search) when Agent Mode is enabled.</textarea>
-                        </div>
-
-                        <!-- Temperature -->
-                        <div class="space-y-2">
-                            <div class="flex justify-between text-xs">
-                                <span class="text-slate-400 font-medium">Temperature</span>
-                                <span id="tempVal" class="text-indigo-400 font-mono">0.7</span>
-                            </div>
-                            <input type="range" id="tempSlider" min="0" max="1.5" step="0.05" value="0.7"
-                                   class="w-full accent-indigo-500 bg-slate-800 h-1.5 rounded-lg cursor-pointer appearance-none"
-                                   oninput="document.getElementById('tempVal').innerText = this.value">
-                        </div>
-
-                        <!-- Top-P -->
-                        <div class="space-y-2">
-                            <div class="flex justify-between text-xs">
-                                <span class="text-slate-400 font-medium">Top-P</span>
-                                <span id="topPVal" class="text-indigo-400 font-mono">0.9</span>
-                            </div>
-                            <input type="range" id="topPSlider" min="0" max="1" step="0.05" value="0.9"
-                                   class="w-full accent-indigo-500 bg-slate-800 h-1.5 rounded-lg cursor-pointer appearance-none"
-                                   oninput="document.getElementById('topPVal').innerText = this.value">
-                        </div>
-
-                        <!-- Max Tokens -->
-                        <div class="space-y-2">
-                            <div class="flex justify-between text-xs">
-                                <span class="text-slate-400 font-medium">Max New Tokens</span>
-                                <span id="maxTokensVal" class="text-indigo-400 font-mono">2048</span>
-                            </div>
-                            <input type="range" id="maxTokensSlider" min="128" max="4096" step="128" value="2048"
-                                   class="w-full accent-indigo-500 bg-slate-800 h-1.5 rounded-lg cursor-pointer appearance-none"
-                                   oninput="document.getElementById('maxTokensVal').innerText = this.value">
-                        </div>
-
-                        <!-- Agent Mode Toggle -->
-                        <div class="flex items-center justify-between border-t border-slate-800/80 pt-4 mt-2">
-                            <span class="text-xs text-slate-400 font-medium flex items-center gap-1.5" title="LLM can dynamically query external tools if active">
-                                <i class="fa-solid fa-robot text-indigo-400 text-[10px]"></i> Enable Agent Mode (Tools)
-                            </span>
-                            <label class="relative inline-flex items-center cursor-pointer">
-                                <input type="checkbox" id="agentToggle" class="sr-only peer" onchange="saveSettings()" checked>
-                                <div class="w-9 h-5 bg-slate-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-300 after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
-                            </label>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- PAGE 1B: IMAGE MODELS VIEW -->
-            <div id="imageView" class="hidden flex-1 flex h-full overflow-hidden">
-                <!-- Left Sidebar for Image Model Control & Params -->
-                <aside class="w-80 border-r border-slate-800 bg-[#0c101d] flex flex-col shrink-0">
-                    <div class="p-5 border-b border-slate-800 space-y-1">
-                        <div class="flex justify-between items-start">
-                            <h3 class="text-sm font-semibold tracking-wide text-slate-200">IMAGE MODEL MANAGER</h3>
-                            <a href="https://haydarkadioglu.com" target="_blank" class="text-[9px] text-slate-500 hover:text-indigo-400 font-mono tracking-tighter shrink-0 mt-0.5 transition duration-150 hover:underline">developed by haydarkadioglu.com</a>
-                        </div>
-                        <p class="text-[10px] text-slate-400">Load and configure Stable Diffusion models.</p>
-                    </div>
-                    <div class="flex-1 overflow-y-auto p-5 space-y-6">
-                        <!-- GPU & VRAM Monitoring (Image Mode) -->
-                        <div class="bg-[#131929]/30 border border-slate-800/80 rounded-xl p-3.5 space-y-2 text-xs font-mono">
-                            <div class="flex justify-between items-center text-[10px] font-bold tracking-wider text-slate-400 font-mono uppercase">
-                                <span>GPU VRAM Usage</span>
-                                <span id="imageVramPct" class="text-indigo-400 font-bold">0%</span>
-                            </div>
-                            <div class="w-full bg-slate-800 rounded-full h-1">
-                                <div id="imageVramProgressBar" class="bg-indigo-500 h-1 rounded-full transition-all duration-500" style="width: 0%"></div>
-                            </div>
-                            <div class="flex justify-between text-slate-400 text-[10px] pt-1">
-                                <span>Used/Total:</span>
-                                <span id="imageVramUsedTotal" class="text-slate-300">0 / 0 MB</span>
-                            </div>
-                            <div class="flex justify-between text-slate-400 text-[10px]">
-                                <span>Disk Space:</span>
-                                <span id="imageDiskUsedTotal" class="text-slate-300">0 / 0 GB</span>
-                            </div>
-                        </div>
-
-                        <!-- Image Model Download Progress Card -->
-                        <div id="imageDownloadProgressCard" class="hidden bg-[#131929]/50 border border-indigo-500/20 rounded-xl p-3.5 space-y-2.5">
-                            <div class="flex justify-between items-center text-xs">
-                                <span id="imageDownloadStatusText" class="font-medium text-slate-300 truncate max-w-[170px]">Downloading...</span>
-                                <span id="imageDownloadPctText" class="text-indigo-400 font-mono font-bold">0%</span>
-                            </div>
-                            <div class="w-full bg-slate-800 rounded-full h-1.5">
-                                <div id="imageDownloadProgressBar" class="bg-indigo-500 h-1.5 rounded-full transition-all duration-500" style="width: 0%"></div>
-                            </div>
-                        </div>
-
-                        <!-- Image Model Load Error Alert Card -->
-                        <div id="imageModelLoadErrorCard" class="hidden bg-red-950/20 border border-red-900/40 rounded-xl p-3.5 space-y-1.5">
-                            <div class="flex justify-between items-center text-[10px] text-red-400 font-bold uppercase tracking-wider">
-                                <span><i class="fa-solid fa-triangle-exclamation mr-1.5"></i>Load Failed</span>
-                                <button onclick="document.getElementById('imageModelLoadErrorCard').classList.add('hidden')" class="hover:text-red-300 transition text-[11px] px-1">
-                                    <i class="fa-solid fa-xmark"></i>
-                                </button>
-                            </div>
-                            <div class="max-h-[100px] overflow-y-auto pr-1">
-                                <p id="imageModelLoadErrorText" class="text-[10px] text-red-350 leading-relaxed font-mono whitespace-pre-wrap break-all"></p>
-                            </div>
-                        </div>
-
-                        <!-- Model Loader Form -->
-                        <div class="space-y-3.5">
-                            <label class="text-[11px] font-bold text-slate-400 tracking-wider block font-mono font-bold">HUGGING FACE ID:</label>
-                            <input type="text" id="imageModelInput" placeholder="e.g. runwayml/stable-diffusion-v1-5" class="w-full bg-[#131929]/50 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 font-mono transition">
-                            
-                            <label class="text-[11px] font-bold text-slate-400 tracking-wider block font-mono font-bold">HF TOKEN (OPTIONAL):</label>
-                            <input type="password" id="imageModelToken" placeholder="gated access token" class="w-full bg-[#131929]/50 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 font-mono transition">
-                            
-                            <div class="grid grid-cols-2 gap-2">
-                                <button onclick="triggerImageModelLoad()" id="imageLoadBtn" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold py-2 px-3 rounded-xl transition flex items-center justify-center gap-1.5 shadow-md shadow-indigo-600/10 active:scale-[0.98] transition">
-                                    <i class="fa-solid fa-play"></i> Load Model
-                                </button>
-                                <button onclick="unloadModel()" id="imageUnloadBtn" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold py-2 px-3 rounded-xl transition flex items-center justify-center gap-1.5 border border-slate-700/50 active:scale-[0.98] transition">
-                                    <i class="fa-solid fa-trash-can"></i> Unload
-                                </button>
-                            </div>
-                        </div>
-                        
-                        <!-- Presets -->
-                        <div class="space-y-3">
-                            <h4 class="text-[10px] font-bold tracking-wider text-slate-400 font-mono uppercase">Quick Presets</h4>
-                            <div class="grid grid-cols-1 gap-2">
-                                <button onclick="selectImagePreset('runwayml/stable-diffusion-v1-5')" class="p-2 text-left bg-[#131929]/30 border border-slate-800 rounded-xl text-xs hover:border-slate-700 transition">
-                                    <p class="font-mono text-slate-300">Stable Diffusion 1.5</p>
-                                    <span class="text-[9px] text-slate-500 font-mono">runwayml/stable-diffusion-v1-5</span>
-                                </button>
-                                <button onclick="selectImagePreset('stabilityai/stable-diffusion-2-1')" class="p-2 text-left bg-[#131929]/30 border border-slate-800 rounded-xl text-xs hover:border-slate-700 transition">
-                                    <p class="font-mono text-slate-300">Stable Diffusion 2.1</p>
-                                    <span class="text-[9px] text-slate-500 font-mono">stabilityai/stable-diffusion-2-1</span>
-                                </button>
-                            </div>
-                        </div>
-                        
-                        <!-- Parameters Divider -->
-                        <div class="border-t border-slate-800/80 pt-5 space-y-4">
-                            <h4 class="text-[10px] font-bold tracking-wider text-slate-400 font-mono uppercase">PARAMETERS</h4>
-                            
-                            <!-- Steps -->
-                            <div class="space-y-1.5">
-                                <div class="flex justify-between items-center text-[10px] font-mono">
-                                    <span class="text-slate-400">Inference Steps:</span>
-                                    <span id="stepsVal" class="text-indigo-400 font-bold">25</span>
-                                </div>
-                                <input type="range" id="stepsInput" min="10" max="50" value="25" oninput="document.getElementById('stepsVal').innerText = this.value" class="w-full accent-indigo-500 h-1 bg-slate-800 rounded-lg cursor-pointer">
-                            </div>
-                            
-                            <!-- Guidance Scale -->
-                            <div class="space-y-1.5">
-                                <div class="flex justify-between items-center text-[10px] font-mono">
-                                    <span class="text-slate-400">Guidance Scale (CFG):</span>
-                                    <span id="cfgVal" class="text-indigo-400 font-bold">7.5</span>
-                                </div>
-                                <input type="range" id="cfgInput" min="1" max="20" step="0.5" value="7.5" oninput="document.getElementById('cfgVal').innerText = this.value" class="w-full accent-indigo-500 h-1 bg-slate-800 rounded-lg cursor-pointer">
-                            </div>
-                            
-                            <!-- Dimensions -->
-                            <div class="grid grid-cols-2 gap-3">
-                                <div class="space-y-1.5">
-                                    <span class="text-[10px] font-mono text-slate-400">Width:</span>
-                                    <select id="widthInput" class="w-full bg-[#131929]/50 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-300 focus:outline-none font-mono">
-                                        <option value="256">256 px</option>
-                                        <option value="512" selected>512 px</option>
-                                        <option value="768">768 px</option>
-                                        <option value="1024">1024 px</option>
-                                    </select>
-                                </div>
-                                <div class="space-y-1.5">
-                                    <span class="text-[10px] font-mono text-slate-400">Height:</span>
-                                    <select id="heightInput" class="w-full bg-[#131929]/50 border border-slate-800 rounded-lg p-1.5 text-xs text-slate-300 focus:outline-none font-mono">
-                                        <option value="256">256 px</option>
-                                        <option value="512" selected>512 px</option>
-                                        <option value="768">768 px</option>
-                                        <option value="1024">1024 px</option>
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Cached Models List (Image Mode) -->
-                        <div class="pt-3 border-t border-slate-800/60 mt-3.5 font-sans">
-                            <label class="text-[10px] font-semibold text-slate-500 tracking-wider uppercase block mb-2 flex justify-between items-center font-mono">
-                                <span>Cached Models</span>
-                                <button onclick="fetchCachedModels()" class="text-indigo-400 hover:text-indigo-300 transition" title="Refresh list">
-                                    <i class="fa-solid fa-rotate-right text-[9px]"></i>
-                                </button>
-                            </label>
-                            <div id="cachedImageModelsList" class="space-y-2 max-h-[160px] overflow-y-auto pr-1">
-                                <span class="text-[10px] text-slate-500 italic block py-1">Scanning cache...</span>
-                            </div>
-                        </div>
-                    </div>
-                </aside>
-                
-                <!-- Main Playground -->
-                <div class="flex-1 flex flex-col h-full bg-[#0B0F19] overflow-hidden">
-                    <!-- Model Header info for Image View -->
-                    <div class="px-6 py-3 bg-[#0D1220]/40 border-b border-slate-800/50 flex justify-between items-center shrink-0">
-                        <div class="flex items-center gap-2.5">
-                            <span class="relative flex h-2 w-2">
-                                <span id="imageModelIndicatorPulse" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
-                                <span id="imageModelIndicator" class="relative inline-flex rounded-full h-2 w-2 bg-yellow-500"></span>
-                            </span>
-                            <span id="activeImageModelLabel" class="text-xs font-mono text-slate-300 font-medium">No image model loaded</span>
-                            <span class="text-[10px] font-bold tracking-wide uppercase px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-400 border border-purple-500/30">Diffusion / SD</span>
-                        </div>
-                    </div>
-                    
-                    <div class="flex-1 overflow-y-auto p-6 space-y-6">
-                    <!-- Top controls / Prompt panel -->
-                    <div class="bg-[#0D1322]/60 border border-slate-800/80 rounded-2xl p-5 space-y-4">
-                        <div class="space-y-2">
-                            <label class="text-[10px] font-bold tracking-wider text-slate-400 font-mono uppercase block">Prompt (What you want to see)</label>
-                            <textarea id="imagePrompt" rows="3" placeholder="A futuristic cyberpunk workstation with neon terminal windows, highly detailed digital art..." class="w-full bg-[#131929]/40 border border-slate-800/80 rounded-xl px-4 py-3 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition resize-none"></textarea>
-                        </div>
-                        
-                        <div class="space-y-2">
-                            <label class="text-[10px] font-bold tracking-wider text-slate-400 font-mono uppercase block">Negative Prompt (What to exclude)</label>
-                            <input type="text" id="imageNegativePrompt" placeholder="blurry, low quality, distorted, extra limbs, ugly, text, watermark" class="w-full bg-[#131929]/40 border border-slate-800/80 rounded-xl px-4 py-3 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition">
-                        </div>
-                        
-                        <div class="flex justify-end pt-1">
-                            <button onclick="generateImage()" id="btnGenerateImage" class="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-xl text-xs font-bold tracking-wider shadow-lg shadow-indigo-600/10 flex items-center gap-2 active:scale-[0.98] transition">
-                                <i class="fa-regular fa-image"></i>Generate Image
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <!-- Preview and history -->
-                    <div class="flex-1 flex flex-col md:flex-row gap-6 min-h-[400px]">
-                        <!-- Left: Live Preview Frame -->
-                        <div class="flex-1 bg-[#0d1322]/40 border border-slate-800/60 rounded-2xl flex flex-col items-center justify-center p-6 relative overflow-hidden min-h-[350px]">
-                            <!-- Loading overlay -->
-                            <div id="imageLoader" class="hidden absolute inset-0 bg-[#0b0f19]/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center gap-3">
-                                <div class="w-8 h-8 rounded-full border-2 border-indigo-500/20 border-t-indigo-500 animate-spin"></div>
-                                <p class="text-xs text-slate-400 font-mono">Generating image...</p>
-                            </div>
-                            
-                            <!-- Result Image -->
-                            <div id="imagePlaceholder" class="text-center space-y-3">
-                                <i class="fa-regular fa-images text-5xl text-slate-600"></i>
-                                <p class="text-xs text-slate-500">Your generated image will appear here.</p>
-                            </div>
-                            <img id="generatedImage" class="hidden max-h-[450px] max-w-full rounded-xl shadow-2xl border border-slate-800/80 object-contain" src="">
-                            
-                            <!-- Action button overlay -->
-                            <div id="imageActions" class="hidden mt-4 flex items-center gap-3">
-                                <a id="btnDownloadImage" href="#" download="generated-image.png" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition">
-                                    <i class="fa-solid fa-download"></i>Download PNG
-                                </a>
-                            </div>
-                        </div>
-                        
-                        <!-- Right: History Panel -->
-                        <div class="w-full md:w-80 bg-[#0d1322]/20 border border-slate-800/40 rounded-2xl p-5 flex flex-col min-h-[250px]">
-                            <h4 class="text-xs font-bold tracking-wider text-slate-400 font-mono uppercase mb-4">Session Gallery</h4>
-                            <div id="imageHistory" class="flex-1 grid grid-cols-2 md:grid-cols-1 gap-3 overflow-y-auto max-h-[400px] pr-1">
-                                <!-- Empty state -->
-                                <p id="galleryEmptyState" class="text-[10px] text-slate-500 italic block py-2 text-center col-span-2 md:col-span-1">No images generated yet.</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-            <!-- PAGE 1C: VIDEO MODELS VIEW -->
-            <div id="videoView" class="hidden flex-1 flex h-full overflow-hidden">
-                <!-- Left Sidebar for Video Model Control & Params -->
-                <aside class="w-80 border-r border-slate-800 bg-[#0c101d] flex flex-col shrink-0 font-sans">
-                    <div class="p-5 border-b border-slate-800 space-y-1">
-                        <div class="flex justify-between items-start">
-                            <h3 class="text-sm font-semibold tracking-wide text-slate-200">VIDEO MODEL MANAGER</h3>
-                            <a href="https://haydarkadioglu.com" target="_blank" class="text-[9px] text-slate-500 hover:text-indigo-400 font-mono tracking-tighter shrink-0 mt-0.5 transition duration-150 hover:underline">developed by haydarkadioglu.com</a>
-                        </div>
-                        <p class="text-[10px] text-slate-400">Load and configure Text-to-Video models.</p>
-                    </div>
-                    <div class="flex-1 overflow-y-auto p-5 space-y-6">
-                        <!-- GPU & VRAM Monitoring (Video Mode) -->
-                        <div class="bg-[#131929]/30 border border-slate-800/80 rounded-xl p-3.5 space-y-2 text-xs font-mono">
-                            <div class="flex justify-between items-center text-[10px] font-bold tracking-wider text-slate-400 font-mono uppercase">
-                                <span>GPU VRAM Usage</span>
-                                <span id="videoVramPct" class="text-indigo-400 font-bold">0%</span>
-                            </div>
-                            <div class="w-full bg-slate-800 rounded-full h-1">
-                                <div id="videoVramProgressBar" class="bg-indigo-500 h-1 rounded-full transition-all duration-500" style="width: 0%"></div>
-                            </div>
-                            <div class="flex justify-between text-slate-400 text-[10px] pt-1">
-                                <span>Used/Total:</span>
-                                <span id="videoVramUsedTotal" class="text-slate-300">0 / 0 MB</span>
-                            </div>
-                            <div class="flex justify-between text-slate-400 text-[10px]">
-                                <span>Disk Space:</span>
-                                <span id="videoDiskUsedTotal" class="text-slate-300">0 / 0 GB</span>
-                            </div>
-                        </div>
-
-                        <!-- Video Model Download Progress Card -->
-                        <div id="videoDownloadProgressCard" class="hidden bg-[#131929]/50 border border-indigo-500/20 rounded-xl p-3.5 space-y-2.5">
-                            <div class="flex justify-between items-center text-xs">
-                                <span id="videoDownloadStatusText" class="font-medium text-slate-300 truncate max-w-[170px]">Downloading...</span>
-                                <span id="videoDownloadPctText" class="text-indigo-400 font-mono font-bold">0%</span>
-                            </div>
-                            <div class="w-full bg-slate-800 rounded-full h-1.5">
-                                <div id="videoDownloadProgressBar" class="bg-indigo-500 h-1.5 rounded-full transition-all duration-500" style="width: 0%"></div>
-                            </div>
-                        </div>
-
-                        <!-- Video Model Load Error Alert Card -->
-                        <div id="videoModelLoadErrorCard" class="hidden bg-red-950/20 border border-red-900/40 rounded-xl p-3.5 space-y-1.5">
-                            <div class="flex justify-between items-center text-[10px] text-red-400 font-bold uppercase tracking-wider">
-                                <span><i class="fa-solid fa-triangle-exclamation mr-1.5"></i>Load Failed</span>
-                                <button onclick="document.getElementById('videoModelLoadErrorCard').classList.add('hidden')" class="hover:text-red-300 transition text-[11px] px-1">
-                                    <i class="fa-solid fa-xmark"></i>
-                                </button>
-                            </div>
-                            <div class="max-h-[100px] overflow-y-auto pr-1">
-                                <p id="videoModelLoadErrorText" class="text-[10px] text-red-350 leading-relaxed font-mono whitespace-pre-wrap break-all"></p>
-                            </div>
-                        </div>
-
-                        <!-- Model Loader Form -->
-                        <div class="space-y-3.5">
-                            <label class="text-[11px] font-bold text-slate-400 tracking-wider block font-mono">HUGGING FACE ID:</label>
-                            <input type="text" id="videoModelInput" placeholder="e.g. damo-vilab/text-to-video-ms-1.7b" class="w-full bg-[#131929]/50 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 font-mono transition">
-                            
-                            <label class="text-[11px] font-bold text-slate-400 tracking-wider block font-mono font-bold">HF TOKEN (OPTIONAL):</label>
-                            <input type="password" id="videoModelToken" placeholder="gated access token" class="w-full bg-[#131929]/50 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 font-mono transition">
-                            
-                            <div class="grid grid-cols-2 gap-2">
-                                <button onclick="triggerVideoModelLoad()" id="videoLoadBtn" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold py-2 px-3 rounded-xl transition flex items-center justify-center gap-1.5 shadow-md shadow-indigo-600/10 active:scale-[0.98] transition">
-                                    <i class="fa-solid fa-play"></i> Load Model
-                                </button>
-                                <button onclick="unloadModel()" id="videoUnloadBtn" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold py-2 px-3 rounded-xl transition flex items-center justify-center gap-1.5 border border-slate-700/50 active:scale-[0.98] transition">
-                                    <i class="fa-solid fa-trash-can"></i> Unload
-                                </button>
-                            </div>
-                        </div>
-                        
-                        <!-- Presets -->
-                        <div class="space-y-3">
-                            <h4 class="text-[10px] font-bold tracking-wider text-slate-400 font-mono uppercase">Quick Presets</h4>
-                            <div class="grid grid-cols-1 gap-2">
-                                <button onclick="selectVideoPreset('damo-vilab/text-to-video-ms-1.7b')" class="p-2 text-left bg-[#131929]/30 border border-slate-800 rounded-xl text-xs hover:border-slate-700 transition">
-                                    <p class="font-mono text-slate-300">ModelScope T2V (1.7B)</p>
-                                    <span class="text-[9px] text-slate-500 font-mono">damo-vilab/text-to-video-ms-1.7b</span>
-                                </button>
-                            </div>
-                        </div>
-                        
-                        <!-- Parameters -->
-                        <div class="space-y-4 pt-4 border-t border-slate-800/60">
-                            <h4 class="text-[10px] font-bold tracking-wider text-slate-400 font-mono uppercase">Generation Params</h4>
-                            
-                            <!-- Steps -->
-                            <div class="space-y-2">
-                                <div class="flex justify-between items-center text-xs font-mono">
-                                    <span class="text-slate-400">Steps:</span>
-                                    <input type="number" id="videoStepsInput" min="5" max="500" value="20" class="w-16 bg-[#080B13] border border-slate-800 focus:border-indigo-500 text-indigo-400 font-bold font-mono rounded px-1.5 py-0.5 text-right text-xs outline-none" oninput="document.getElementById('videoStepsSlider').value = this.value;">
-                                </div>
-                                <input type="range" id="videoStepsSlider" min="5" max="150" value="20" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500" oninput="document.getElementById('videoStepsInput').value = this.value;">
-                            </div>
-                            
-                            <!-- Frame Count -->
-                            <div class="space-y-2">
-                                <div class="flex justify-between items-center text-xs font-mono">
-                                    <span class="text-slate-400">Frames:</span>
-                                    <input type="number" id="videoFramesInput" min="8" max="2000" value="16" class="w-16 bg-[#080B13] border border-slate-800 focus:border-indigo-500 text-indigo-400 font-bold font-mono rounded px-1.5 py-0.5 text-right text-xs outline-none" oninput="document.getElementById('videoFramesSlider').value = this.value; updateVideoDurationEst();">
-                                </div>
-                                <input type="range" id="videoFramesSlider" min="8" max="500" step="4" value="16" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500" oninput="document.getElementById('videoFramesInput').value = this.value; updateVideoDurationEst();">
-                            </div>
-                            
-                            <!-- FPS (Frames per second) -->
-                            <div class="space-y-2">
-                                <div class="flex justify-between items-center text-xs font-mono">
-                                    <span class="text-slate-400">FPS (Frames/sec):</span>
-                                    <input type="number" id="videoFpsInput" min="1" max="120" value="8" class="w-16 bg-[#080B13] border border-slate-800 focus:border-indigo-500 text-indigo-400 font-bold font-mono rounded px-1.5 py-0.5 text-right text-xs outline-none" oninput="document.getElementById('videoFpsSlider').value = this.value; updateVideoDurationEst();">
-                                </div>
-                                <input type="range" id="videoFpsSlider" min="4" max="60" value="8" class="w-full h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500" oninput="document.getElementById('videoFpsInput').value = this.value; updateVideoDurationEst();">
-                            </div>
-
-                            <!-- Duration Estimation Info -->
-                            <div class="text-[10px] text-slate-500 font-mono italic text-right">
-                                Est. Duration: <span id="videoDurationEst" class="text-slate-300 font-bold">2.0</span> seconds
-                            </div>
-                        </div>
-
-                        <!-- Cached Models List (Video Mode) -->
-                        <div class="pt-3 border-t border-slate-800/60 mt-3.5 font-sans">
-                            <label class="text-[10px] font-semibold text-slate-500 tracking-wider uppercase block mb-2 flex justify-between items-center font-mono">
-                                <span>Cached Models</span>
-                                <button onclick="fetchCachedModels()" class="text-indigo-400 hover:text-indigo-300 transition" title="Refresh list">
-                                    <i class="fa-solid fa-rotate-right text-[9px]"></i>
-                                </button>
-                            </label>
-                            <div id="cachedVideoModelsList" class="space-y-2 max-h-[160px] overflow-y-auto pr-1">
-                                <span class="text-[10px] text-slate-500 italic block py-1">Scanning cache...</span>
-                            </div>
-                        </div>
-                    </div>
-                </aside>
-                
-                <!-- Main Playground -->
-                <div class="flex-1 flex flex-col h-full bg-[#0B0F19] overflow-hidden">
-                    <!-- Model Header info for Video View -->
-                    <div class="px-6 py-3 bg-[#0D1220]/40 border-b border-slate-800/50 flex justify-between items-center shrink-0">
-                        <div class="flex items-center gap-2.5">
-                            <span class="relative flex h-2 w-2">
-                                <span id="videoModelIndicatorPulse" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
-                                <span id="videoModelIndicator" class="relative inline-flex rounded-full h-2 w-2 bg-yellow-500"></span>
-                            </span>
-                            <span id="activeVideoModelLabel" class="text-xs font-mono text-slate-300 font-medium">No video model loaded</span>
-                            <span class="text-[10px] font-bold tracking-wide uppercase px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">Video / T2V</span>
-                        </div>
-                    </div>
-                    
-                    <div class="flex-1 overflow-y-auto p-6 space-y-6">
-                        <!-- Top controls / Prompt panel -->
-                        <div class="bg-[#0D1322]/60 border border-slate-800/80 rounded-2xl p-5 space-y-4">
-                            <div class="space-y-2">
-                                <label class="text-[10px] font-bold tracking-wider text-slate-400 font-mono uppercase block">Prompt (What you want to see in motion)</label>
-                                <textarea id="videoPrompt" rows="3" placeholder="A majestic waterfall cascading down a glowing crystal cave, slow motion, detailed 3D render..." class="w-full bg-[#131929]/40 border border-slate-800/80 rounded-xl px-4 py-3 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition resize-none"></textarea>
-                            </div>
-                            
-                            <!-- Video Image Condition (Image to Video) -->
-                            <div class="space-y-2">
-                                <label class="text-[10px] font-bold tracking-wider text-slate-400 font-mono uppercase block">Condition Image (Optional - for Image-to-Video models)</label>
-                                <div class="flex items-center gap-3 font-sans">
-                                    <button onclick="triggerVideoImageUpload()" class="px-3 py-2 bg-slate-800/80 hover:bg-slate-700 text-slate-200 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition">
-                                        <i class="fa-regular fa-image"></i>Attach Image
-                                    </button>
-                                    <input type="file" id="videoImageInput" accept="image/*" class="hidden" onchange="handleVideoImageSelection(event)">
-                                    <div id="videoImagePreviewContainer" class="hidden flex items-center gap-2 bg-[#131929]/50 border border-slate-800 rounded-xl p-1.5 pr-2.5">
-                                        <img id="videoImagePreview" src="" class="w-8 h-8 object-cover rounded-lg border border-slate-700">
-                                        <span id="videoImageFileName" class="text-[10px] text-slate-400 truncate max-w-[150px]">image.png</span>
-                                        <button onclick="clearSelectedVideoImage()" class="text-slate-500 hover:text-red-400 transition" title="Clear image">
-                                            <i class="fa-solid fa-xmark text-xs"></i>
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="space-y-2">
-                                <label class="text-[10px] font-bold tracking-wider text-slate-400 font-mono uppercase block">Negative Prompt (What to exclude)</label>
-                                <input type="text" id="videoNegativePrompt" placeholder="blurry, low quality, distorted, static, ugly" class="w-full bg-[#131929]/40 border border-slate-800/80 rounded-xl px-4 py-3 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition">
-                            </div>
-                            
-                            <div class="flex justify-end">
-                                <button onclick="generateVideo()" id="btnGenerateVideo" class="px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-500 text-white text-xs font-semibold tracking-wide flex items-center gap-2 shadow-lg shadow-indigo-600/20 active:scale-[0.98] transition font-sans">
-                                    <i class="fa-solid fa-video"></i>Generate Video
-                                </button>
-                            </div>
-                        </div>
-                        
-                        <!-- Output Preview Frame and Gallery -->
-                        <div class="flex flex-col md:flex-row gap-6">
-                            <!-- Left: Active Preview -->
-                            <div class="flex-1 bg-[#0d1322]/40 border border-slate-800/60 rounded-2xl p-6 min-h-[300px] flex flex-col items-center justify-center relative overflow-hidden">
-                                <!-- Loader Overlay -->
-                                <div id="videoGeneratorLoader" class="hidden absolute inset-0 bg-[#070A13]/90 flex flex-col items-center justify-center gap-4 z-20 backdrop-blur-sm font-sans p-6">
-                                    <div class="w-10 h-10 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin"></div>
-                                    <div class="text-center space-y-2 w-full max-w-xs flex flex-col items-center">
-                                        <p id="videoLoaderStatusText" class="text-xs font-bold text-slate-200">Rendering Video frames...</p>
-                                        <div class="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
-                                            <div id="videoLoaderProgressBar" class="bg-indigo-500 h-1.5 rounded-full transition-all duration-300" style="width: 0%"></div>
-                                        </div>
-                                        <p class="text-[9px] text-indigo-400 font-mono">This may take a few minutes depending on VRAM & steps.</p>
-                                        <button onclick="cancelVideoGeneration()" class="mt-3 px-3 py-1 bg-red-950/80 hover:bg-red-900 border border-red-800/40 text-red-300 hover:text-red-200 rounded-lg text-[10px] font-semibold flex items-center gap-1 transition">
-                                            <i class="fa-solid fa-circle-stop"></i>Cancel Generation
-                                        </button>
-                                    </div>
-                                </div>
-                                
-                                <!-- Result Video Player -->
-                                <div id="videoPlaceholder" class="text-center space-y-3 font-sans">
-                                    <i class="fa-solid fa-clapperboard text-5xl text-slate-600"></i>
-                                    <p class="text-xs text-slate-500">Your generated video loops will appear here.</p>
-                                </div>
-                                <video id="generatedVideo" class="hidden max-h-[450px] max-w-full rounded-xl shadow-2xl border border-slate-800/80 object-contain focus:outline-none" controls autoplay loop playsinline></video>
-                                
-                                <!-- Action button overlay -->
-                                <div id="videoActions" class="hidden mt-4 flex items-center gap-3 font-sans">
-                                    <a id="btnDownloadVideo" href="#" download="generated-video.mp4" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition">
-                                        <i class="fa-solid fa-download"></i>Download MP4
-                                    </a>
-                                </div>
-                            </div>
-                            
-                            <!-- Right: History Panel -->
-                            <div class="w-full md:w-80 bg-[#0d1322]/20 border border-slate-800/40 rounded-2xl p-5 flex flex-col min-h-[250px] font-sans">
-                                <h4 class="text-xs font-bold tracking-wider text-slate-400 font-mono uppercase mb-4">Session Gallery</h4>
-                                
-                                <!-- Floating Merge Action Bar -->
-                                <div id="videoMergeActionBar" class="hidden mb-3 p-2 bg-indigo-950/40 border border-indigo-500/20 rounded-xl flex items-center justify-between gap-2 transition duration-200">
-                                    <span class="text-[10px] text-indigo-300 font-mono"><span id="selectedVideoCount" class="font-bold">0</span> selected</span>
-                                    <button onclick="mergeSelectedVideos()" class="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-[10px] font-semibold flex items-center gap-1.5 transition">
-                                        <i class="fa-solid fa-code-branch rotate-90"></i>Merge
-                                    </button>
-                                </div>
-                                
-                                <div id="videoHistory" class="flex-1 grid grid-cols-2 md:grid-cols-1 gap-3 overflow-y-auto max-h-[400px] pr-1">
-                                    <!-- Empty state -->
-                                    <p id="videoGalleryEmptyState" class="text-[10px] text-slate-500 italic block py-2 text-center col-span-2 md:col-span-1">No videos generated yet.</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- PAGE 2: DASHBOARD VIEW -->
-            <div id="dashboardView" class="hidden flex-1 p-6 overflow-y-auto space-y-6">
-                <div class="max-w-5xl mx-auto space-y-6">
-                    <div>
-                        <h2 class="text-xl font-bold tracking-tight">System Performance & VRAM History</h2>
-                        <p class="text-xs text-slate-400 mt-1">Real-time charting of hardware metrics and hardware properties.</p>
-                    </div>
-                    
-                    <!-- Live VRAM Graph card -->
-                    <div class="bg-[#131929]/50 border border-slate-800/80 rounded-2xl p-5 flex flex-col gap-4">
-                        <div class="flex justify-between items-center text-sm font-semibold">
-                            <span>VRAM Allocation History</span>
-                            <span id="vramChartLegend" class="text-indigo-400 font-mono text-xs">0 / 0 MB (0%)</span>
-                        </div>
-                        <canvas id="vramChartCanvas" class="w-full h-64 bg-[#080B13]/90 border border-slate-800 rounded-xl"></canvas>
-                    </div>
-                    
-                    <!-- System Details Table -->
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div class="bg-[#131929]/30 border border-slate-800/80 rounded-2xl p-5 space-y-4">
-                            <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-400"><i class="fa-solid fa-microchip mr-1.5"></i>GPU / CUDA Node</h3>
-                            <div class="space-y-3.5 text-sm font-mono">
-                                <div class="flex justify-between border-b border-slate-800 pb-2 text-slate-400">
-                                    <span>GPU Model:</span>
-                                    <span id="dashGpuName" class="text-slate-100">Detecting...</span>
-                                </div>
-                                <div class="flex justify-between border-b border-slate-800 pb-2 text-slate-400">
-                                    <span>Quantized State:</span>
-                                    <span id="dashQuantState" class="text-slate-100">4-bit NF4</span>
-                                </div>
-                                <div class="flex justify-between border-b border-slate-800 pb-2 text-slate-400">
-                                    <span>VRAM Allocation:</span>
-                                    <span id="dashVram" class="text-slate-100">0 / 0 MB</span>
-                                </div>
-                                <div class="flex justify-between border-b border-slate-800 pb-2 text-slate-400">
-                                    <span>Generation Speed:</span>
-                                    <span id="dashSpeed" class="text-slate-100">0.0 tokens/s</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="bg-[#131929]/30 border border-slate-800/80 rounded-2xl p-5 space-y-4">
-                            <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-400"><i class="fa-solid fa-server mr-1.5"></i>Host Environment</h3>
-                            <div class="space-y-3.5 text-sm font-mono">
-                                <div class="flex justify-between border-b border-slate-800 pb-2 text-slate-400">
-                                    <span>Operating System:</span>
-                                    <span id="dashOs" class="text-slate-100">Detecting...</span>
-                                </div>
-                                <div class="flex justify-between border-b border-slate-800 pb-2 text-slate-400">
-                                    <span>Host RAM used:</span>
-                                    <span id="dashRam" class="text-slate-100">0.0 / 0.0 GB</span>
-                                </div>
-                                <div class="flex justify-between border-b border-slate-800 pb-2 text-slate-400">
-                                    <span>Python Engine:</span>
-                                    <span id="dashPyVersion" class="text-slate-100">3.x</span>
-                                </div>
-                                <div class="flex justify-between border-b border-slate-800 pb-2 text-slate-400">
-                                    <span>Workstation Port:</span>
-                                    <span class="text-indigo-400">8000</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- PAGE 3: MCP VIEW -->
-            <div id="mcpView" class="hidden flex-1 p-6 overflow-y-auto space-y-6">
-                <div class="max-w-4xl mx-auto space-y-6">
-                    <div>
-                        <h2 class="text-xl font-bold tracking-tight">Model Context Protocol (MCP) Hub</h2>
-                        <p class="text-xs text-slate-400 mt-1">Expose this LLM workstation's capabilities or connect external servers to give tools to your model.</p>
-                    </div>
-
-                    <!-- MCP Sub-navigation -->
-                    <div class="flex border-b border-slate-800/80 gap-6 mb-4">
-                        <button onclick="toggleMcpSubpage('mcpServer')" id="mcpServerBtn" class="pb-3 text-sm font-semibold border-b-2 border-indigo-500 text-indigo-400">
-                            <i class="fa-solid fa-share-nodes mr-1.5"></i>Expose Workstation (Server Mode)
-                        </button>
-                        <button onclick="toggleMcpSubpage('mcpClient')" id="mcpClientBtn" class="pb-3 text-sm font-medium border-b-2 border-transparent text-slate-400 hover:text-slate-200">
-                            <i class="fa-solid fa-plug mr-1.5"></i>Connect to Servers (Client Mode)
-                        </button>
-                    </div>
-
-                    <!-- SUBVIEW 1: SERVER MODE -->
-                    <div id="mcpServerSubpage" class="space-y-6">
-                        <!-- MCP Info Banner -->
-                        <div class="bg-gradient-to-r from-indigo-900/40 via-purple-900/20 to-slate-900 border border-indigo-500/20 rounded-2xl p-5">
-                            <h3 class="text-sm font-semibold text-indigo-300 mb-1.5"><i class="fa-solid fa-circle-nodes mr-1.5"></i>Double-Transport Architecture</h3>
-                            <p class="text-xs text-slate-300 leading-relaxed">
-                                This workstation features a dual-transport MCP implementation. You can connect it locally using the <strong>Stdio</strong> CLI pipeline or connect remotely over the internet via the <strong>Server-Sent Events (SSE)</strong> Cloudflare Tunnel.
-                            </p>
-                        </div>
-
-                        <!-- Configuration Cards -->
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <!-- SSE Card -->
-                            <div class="bg-[#131929]/50 border border-slate-800 rounded-2xl p-5 space-y-3.5">
-                                <span class="text-xs font-bold text-indigo-400 uppercase tracking-wide"><i class="fa-solid fa-globe mr-1.5"></i>Remote SSE Endpoint</span>
-                                <p class="text-xs text-slate-400 leading-normal">Allows IDE client wrappers to execute tools remotely through your Cloudflare Tunnel. Connect using the following endpoint URL:</p>
-                                <div class="p-3 bg-[#080B13] border border-slate-800 rounded-xl flex items-center justify-between text-xs font-mono text-emerald-400">
-                                    <span id="mcpSseUrl">Connecting...</span>
-                                    <button onclick="navigator.clipboard.writeText(document.getElementById('mcpSseUrl').innerText)" class="hover:text-white transition">
-                                        <i class="fa-regular fa-copy"></i>
-                                    </button>
-                                </div>
-                            </div>
-
-                            <!-- Stdio Card -->
-                            <div class="bg-[#131929]/50 border border-slate-800 rounded-2xl p-5 space-y-3.5">
-                                <span class="text-xs font-bold text-indigo-400 uppercase tracking-wide"><i class="fa-solid fa-terminal mr-1.5"></i>Local Stdio Command</span>
-                                <p class="text-xs text-slate-400 leading-normal">Run in standard Stdio CLI loop. Launches the server in input-output pipeline mode (perfect for local IDE configurations):</p>
-                                <div class="p-3 bg-[#080B13] border border-slate-800 rounded-xl flex items-center justify-between text-xs font-mono text-indigo-300">
-                                    <span>python app.py --mcp-stdio</span>
-                                    <button onclick="navigator.clipboard.writeText('python app.py --mcp-stdio')" class="hover:text-white transition">
-                                        <i class="fa-regular fa-copy"></i>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Claude Desktop Config Card -->
-                        <div class="bg-[#131929]/30 border border-slate-800/80 rounded-2xl p-5 space-y-4">
-                            <div class="flex justify-between items-center">
-                                <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-400"><i class="fa-solid fa-code mr-1.5"></i>Claude Desktop Settings JSON</h3>
-                                <button onclick="navigator.clipboard.writeText(document.getElementById('mcpConfigCode').innerText)" class="text-xs text-indigo-400 hover:text-indigo-300 transition">
-                                    <i class="fa-regular fa-copy mr-1"></i> Copy Configuration
-                                </button>
-                            </div>
-                            <p class="text-xs text-slate-500 leading-normal">Add this JSON snippet inside your `claude_desktop_config.json` configuration file to let Claude invoke your workstation's LLM tools directly:</p>
-                            <pre class="bg-[#080B13] border border-slate-800/80 rounded-xl p-4 overflow-x-auto text-xs font-mono text-indigo-300"><code id="mcpConfigCode">Checking path...</code></pre>
-                        </div>
-
-                        <!-- Exposed Tools details -->
-                        <div class="space-y-3">
-                            <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-400"><i class="fa-solid fa-toolbox mr-1.5"></i>Exposed MCP Tools</h3>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                                <div class="p-4 bg-[#131929]/20 border border-slate-800/60 rounded-xl space-y-1">
-                                    <span class="text-xs font-mono font-semibold text-indigo-400">get_telemetry</span>
-                                    <p class="text-xs text-slate-400">Retrieves real-time used/total VRAM status, active GPU names, model loading states, and saniyede üretilen tokens metrics.</p>
-                                </div>
-                                <div class="p-4 bg-[#131929]/20 border border-slate-800/60 rounded-xl space-y-1">
-                                    <span class="text-xs font-mono font-semibold text-indigo-400">load_model</span>
-                                    <p class="text-xs text-slate-400">Takes a `model_id` string arguments payload to dynamically trigger background downloads and hot-swaps of HF models.</p>
-                                </div>
-                                <div class="p-4 bg-[#131929]/20 border border-slate-800/60 rounded-xl space-y-1">
-                                    <span class="text-xs font-mono font-semibold text-indigo-400">unload_model</span>
-                                    <p class="text-xs text-slate-400">Instantly drops the model from memory and purges GPU CUDA caches to free VRAM for other server tasks.</p>
-                                </div>
-                                <div class="p-4 bg-[#131929]/20 border border-slate-800/60 rounded-xl space-y-1">
-                                    <span class="text-xs font-mono font-semibold text-indigo-400">generate</span>
-                                    <p class="text-xs text-slate-400">Generates text from the loaded model. Supports multimodal inputs via `image_base64` parameter if a vision model is loaded.</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- SUBVIEW 2: CLIENT MODE -->
-                    <div id="mcpClientSubpage" class="hidden space-y-6">
-                        <!-- Connection Form Card -->
-                        <div class="bg-[#131929]/50 border border-slate-800 rounded-2xl p-5 space-y-4">
-                            <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-300"><i class="fa-solid fa-plus-circle mr-1.5"></i>Link External MCP Server</h3>
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div class="space-y-1.5">
-                                    <label class="text-xs text-slate-400 font-medium">Transport Type:</label>
-                                    <select id="mcpConnType" onchange="toggleMcpFields()" class="w-full bg-[#080B13] border border-slate-800 focus:border-indigo-500 text-slate-200 rounded-xl px-3 py-2 text-xs outline-none transition">
-                                        <option value="stdio">Stdio (Local Process)</option>
-                                        <option value="sse">SSE (HTTP Endpoint)</option>
-                                    </select>
-                                </div>
-                                
-                                <!-- Stdio fields -->
-                                <div id="stdioFieldsCmd" class="space-y-1.5">
-                                    <label class="text-xs text-slate-400 font-medium">Command:</label>
-                                    <input type="text" id="mcpConnCmd" placeholder="e.g. npx or node" class="w-full bg-[#080B13] border border-slate-800 focus:border-indigo-500 text-slate-200 rounded-xl px-3 py-2 text-xs outline-none transition font-mono">
-                                </div>
-                                <div id="stdioFieldsArgs" class="space-y-1.5">
-                                    <label class="text-xs text-slate-400 font-medium">Arguments:</label>
-                                    <input type="text" id="mcpConnArgs" placeholder="e.g. -y @modelcontextprotocol/server-sqlite --db t.db" class="w-full bg-[#080B13] border border-slate-800 focus:border-indigo-500 text-slate-200 rounded-xl px-3 py-2 text-xs outline-none transition font-mono">
-                                </div>
-                                
-                                <!-- SSE fields -->
-                                <div id="sseFieldsUrl" class="hidden md:col-span-2 space-y-1.5">
-                                    <label class="text-xs text-slate-400 font-medium">SSE Endpoint URL:</label>
-                                    <input type="text" id="mcpConnUrl" placeholder="e.g. http://localhost:3000/sse" class="w-full bg-[#080B13] border border-slate-800 focus:border-indigo-500 text-slate-200 rounded-xl px-3 py-2 text-xs outline-none transition font-mono">
-                                </div>
-                            </div>
-                            <div class="flex justify-end pt-2">
-                                <button onclick="connectExternalMcpServer()" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold py-2 px-4 rounded-xl transition flex items-center gap-1.5 shadow-md shadow-indigo-600/10">
-                                    <i class="fa-solid fa-plug"></i> Connect Server
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Active Connections Table -->
-                        <div class="bg-[#131929]/30 border border-slate-800/80 rounded-2xl p-5 space-y-4">
-                            <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-300"><i class="fa-solid fa-link mr-1.5"></i>Connected External Servers</h3>
-                            <div id="clientServersList" class="space-y-3.5">
-                                <p class="text-xs text-slate-500 italic py-2">No external MCP servers connected. Connect one above to expose tools to your LLM.</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- PAGE 4: SETTINGS VIEW -->
-            <div id="settingsView" class="hidden flex-1 p-6 overflow-y-auto space-y-6">
-                <div class="max-w-3xl mx-auto space-y-6">
-                    <div class="flex justify-between items-start">
-                        <div>
-                            <h2 class="text-xl font-bold tracking-tight">System Settings</h2>
-                            <p class="text-xs text-slate-400 mt-1">Configure preset variables, credentials, and parameters.</p>
-                        </div>
-                        <div class="text-right font-mono">
-                            <span class="text-xs font-bold text-indigo-400 tracking-wider block">haydarkadioglu/llm-workstation</span>
-                            <a href="https://haydarkadioglu.com" target="_blank" class="text-[9px] text-slate-500 hover:text-indigo-400 mt-0.5 block transition duration-150 hover:underline">developed by haydarkadioglu.com</a>
-                        </div>
-                    </div>
-
-                    <!-- Google Drive Storage -->
-                    <div class="bg-[#131929]/50 border border-slate-800/80 rounded-2xl p-5 space-y-4">
-                        <div class="flex items-center justify-between">
-                            <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-300">
-                                <i class="fa-brands fa-google-drive mr-1.5 text-yellow-400"></i>Google Drive Storage
-                            </h3>
-                            <!-- Drive Mount Status Badge -->
-                            <div id="driveMountBadge" class="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-slate-800/60 border border-slate-700 text-[10px] font-mono text-slate-500">
-                                <span id="driveMountDot" class="w-1.5 h-1.5 rounded-full bg-slate-600"></span>
-                                <span id="driveMountLabel">Checking...</span>
-                            </div>
-                        </div>
-
-                        <p class="text-xs text-slate-500">When Google Drive is mounted in Colab (<code class="text-pink-400 text-[10px]">drive.mount('/content/drive')</code>), enable this to save and load models directly from Drive — no re-downloading between sessions.</p>
-
-                        <!-- Drive Mode Toggle -->
-                        <div class="flex items-center justify-between py-2 border-t border-slate-800/60">
-                            <div>
-                                <span class="text-xs text-slate-300 font-medium">Use Drive for Model Storage</span>
-                                <p class="text-[10px] text-slate-500 mt-0.5">Downloads go to Drive. Existing Drive models load without re-download.</p>
-                            </div>
-                            <label class="relative inline-flex items-center cursor-pointer">
-                                <input type="checkbox" id="driveModeToggle" class="sr-only peer" onchange="toggleDriveMode(this.checked)" disabled>
-                                <div class="w-9 h-5 bg-slate-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-300 after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-yellow-500 peer-disabled:opacity-40 peer-disabled:cursor-not-allowed"></div>
-                            </label>
-                        </div>
-
-                        <!-- Drive Path Display -->
-                        <div id="drivePathRow" class="hidden bg-[#080B13] border border-slate-800/80 rounded-xl px-3 py-2 flex items-center justify-between">
-                            <span class="text-[10px] font-mono text-yellow-400 truncate" id="drivePathLabel">/content/drive/MyDrive/LLM-Workstation/models</span>
-                            <button onclick="navigator.clipboard.writeText(document.getElementById('drivePathLabel').innerText)" class="text-slate-500 hover:text-white transition ml-2 shrink-0">
-                                <i class="fa-regular fa-copy text-[10px]"></i>
-                            </button>
-                        </div>
-
-                        <!-- Drive Cached Models -->
-                        <div id="driveCachedSection" class="hidden space-y-2 pt-1 border-t border-slate-800/60">
-                            <div class="flex items-center justify-between">
-                                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                                    <i class="fa-solid fa-folder-open mr-1 text-yellow-400"></i>Models on Drive
-                                </span>
-                                <button onclick="fetchDriveCachedModels()" class="text-indigo-400 hover:text-indigo-300 transition" title="Refresh">
-                                    <i class="fa-solid fa-rotate-right text-[10px]"></i>
-                                </button>
-                            </div>
-                            <div id="driveCachedList" class="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                                <span class="text-[10px] text-slate-500 italic">Scanning Drive...</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Custom Credentials / Hugging Face Token -->
-                    <div class="bg-[#131929]/50 border border-slate-800/80 rounded-2xl p-5 space-y-4">
-                        <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-400"><i class="fa-solid fa-key mr-1.5"></i>Hugging Face Credentials</h3>
-                        <p class="text-xs text-slate-500">Provide an optional Hugging Face Hub Access Token (`HF_TOKEN`) to download private models or bypass API download rate limits. (Stored in browser local storage).</p>
-                        <div class="flex gap-2">
-                            <input type="password" id="hfTokenInput" placeholder="hf_..."
-                                   class="flex-1 bg-[#080B13] border border-slate-800 focus:border-indigo-500 text-slate-100 rounded-xl px-3 py-2 text-xs outline-none transition font-mono">
-                            <button onclick="saveHfToken()" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold px-4 py-2 rounded-xl transition">Save Token</button>
-                        </div>
-                    </div>
-
-                    <!-- System Info and Stats -->
-                    <div class="bg-[#131929]/30 border border-slate-800/80 rounded-2xl p-5 space-y-3.5 text-xs text-slate-400">
-                        <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-300"><i class="fa-solid fa-circle-info mr-1.5"></i>Workstation Diagnostics</h3>
-                        <p>This workstation is configured to automatically download the Cloudflare Tunnel binaries on start, meaning it is fully portable. Quantization defaults use 4-bit Double Quantization to squeeze larger instruct models (up to 8B/13B parameters) into consumer or Colab T4 GPU VRAM limits.</p>
-                        <div class="flex gap-3 text-slate-500 font-mono text-[10px] pt-1">
-                            <span>Version: 1.1.0</span>
-                            <span>•</span>
-                            <span>Protocols: OpenAI, SSE, Stdio, MCP</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-        </main>
+<body>
+  <header class="topbar">
+    <strong class="brand">LLM Workstation</strong>
+    <nav id="nav" aria-label="Sections">
+      <a href="#chat">Chat</a>
+      <a href="#models">Models</a>
+      <a href="#mcp">MCP</a>
+      <a href="#image">Image</a>
+      <a href="#video">Video</a>
+      <a href="#settings">Settings</a>
+    </nav>
+    <div class="status" id="status">
+      <span class="dot" id="statusDot"></span>
+      <span id="statusText">Connecting...</span>
     </div>
+  </header>
+  <div class="progress hidden" id="loadBar"><div id="loadBarFill"></div></div>
 
-    <!-- Hugging Face Search Modal -->
-    <div id="hfSearchModal" class="hidden fixed inset-0 z-50 bg-[#070A10]/90 backdrop-blur-sm flex items-center justify-center p-4">
-        <div class="bg-[#0B0F19] border border-slate-800 rounded-2xl w-full max-w-5xl h-[85vh] flex flex-col shadow-2xl shadow-indigo-900/10 overflow-hidden relative">
-            <!-- Header -->
-            <div class="px-6 py-4 border-b border-slate-800/60 flex justify-between items-center bg-[#0D1220]/50 shrink-0">
-                <div class="flex items-center gap-3">
-                    <div class="bg-indigo-500/20 text-indigo-400 p-2 rounded-lg"><i class="fa-solid fa-magnifying-glass"></i></div>
-                    <div>
-                        <h2 class="text-sm font-bold text-slate-200">Search GGUF Models</h2>
-                        <p class="text-[10px] text-slate-400 font-mono">Powered by Hugging Face Hub</p>
-                    </div>
-                </div>
-                <button onclick="closeHfSearchModal()" class="text-slate-400 hover:text-white transition w-8 h-8 flex justify-center items-center rounded-lg hover:bg-slate-800">
-                    <i class="fa-solid fa-xmark"></i>
-                </button>
-            </div>
-            
-            <!-- Body -->
-            <div class="flex-1 flex flex-col overflow-hidden">
-                <!-- Search Bar -->
-                <div class="p-6 shrink-0 border-b border-slate-800/40">
-                    <form id="hfSearchForm" class="relative" onsubmit="event.preventDefault(); submitHfSearch();">
-                        <input type="text" id="hfSearchInput" oninput="debounceHfSearch()" placeholder="Search for models (e.g. Llama-3, Qwen) or leave blank for top models..." class="w-full bg-[#131929] border border-slate-700 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-xl pl-11 pr-24 py-3 text-sm text-slate-200 font-mono transition outline-none shadow-inner">
-                        <i class="fa-solid fa-search absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"></i>
-                        <button type="submit" id="hfSearchBtn" class="absolute right-2 top-1/2 -translate-y-1/2 bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-bold px-4 py-1.5 rounded-lg transition shadow-md">
-                            Search
-                        </button>
-                    </form>
-                </div>
-                
-                <!-- Results Container -->
-                <div class="flex-1 flex overflow-hidden">
-                    <!-- Left: Repo List -->
-                    <div class="w-[45%] border-r border-slate-800/60 flex flex-col bg-[#070A10]/30 relative">
-                        <div id="hfRepoLoader" class="hidden absolute inset-0 bg-[#070A10]/50 backdrop-blur-sm flex flex-col items-center justify-center z-10">
-                            <div class="w-8 h-8 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin"></div>
-                            <span class="text-[10px] text-slate-400 mt-3 font-mono">Searching Hub...</span>
-                        </div>
-                        <div id="hfRepoList" class="flex-1 overflow-y-auto p-4 space-y-2">
-                            <div class="text-center py-10 text-slate-500 text-xs font-mono">
-                                Enter a query to search GGUF models.
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Right: File Details -->
-                    <div class="w-[55%] flex flex-col bg-[#0d1322]/20 relative">
-                        <div id="hfFileLoader" class="hidden absolute inset-0 bg-[#0d1322]/50 backdrop-blur-sm flex flex-col items-center justify-center z-10">
-                            <div class="w-8 h-8 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin"></div>
-                            <span class="text-[10px] text-slate-400 mt-3 font-mono">Scanning repo files...</span>
-                        </div>
-                        
-                        <div class="p-4 border-b border-slate-800/40 bg-[#0B0F19]/80 shrink-0">
-                            <h3 id="hfSelectedRepoTitle" class="text-xs font-bold text-slate-300 font-mono truncate">Select a repository</h3>
-                            <p class="text-[10px] text-slate-500 mt-1">Available quantization files will appear below</p>
-                        </div>
-                        
-                        <div id="hfFileList" class="flex-1 overflow-y-auto p-4 space-y-2">
-                            <!-- Files populated here -->
-                            <div class="text-center py-10 text-slate-500 text-xs font-mono">
-                                <i class="fa-solid fa-file-code text-2xl mb-3 opacity-20"></i><br>
-                                No repository selected
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+  <main>
+    <section id="view-chat" class="view chat-layout">
+      <aside class="chat-list">
+        <button class="primary" id="newChat">New chat</button>
+        <div id="chatList"></div>
+      </aside>
+
+      <div class="chat-main">
+        <div class="messages" id="messages"></div>
+        <form class="composer" id="composer">
+          <div class="attachment hidden" id="attachment">
+            <img id="attachmentImg" alt="Attached image">
+            <button type="button" class="link" id="attachmentClear">Remove</button>
+          </div>
+          <textarea id="input" rows="1" placeholder="Message the model" aria-label="Message"></textarea>
+          <div class="composer-row">
+            <label class="toggle" title="Let the model call web search and connected MCP tools">
+              <input type="checkbox" id="agentMode"> <span>Tools</span>
+              <span class="muted" id="toolCount"></span>
+            </label>
+            <button type="button" id="attach">Attach image</button>
+            <input type="file" id="attachInput" accept="image/*" hidden>
+            <button type="button" id="toggleParams">Parameters</button>
+            <span class="spacer"></span>
+            <span class="muted mono" id="contextMeter"></span>
+            <button type="button" class="danger hidden" id="stop">Stop</button>
+            <button type="submit" class="primary" id="send">Send</button>
+          </div>
+        </form>
+      </div>
+
+      <aside class="params hidden" id="params">
+        <h3>Parameters</h3>
+        <label>Persona
+          <select id="persona"></select>
+        </label>
+        <label>System prompt
+          <textarea id="systemPrompt" rows="5"></textarea>
+        </label>
+        <div id="paramSliders"></div>
+        <label>Seed
+          <input type="number" id="seed" placeholder="Random">
+        </label>
+        <label>Stop strings, one per line
+          <textarea id="stopStrings" rows="2"></textarea>
+        </label>
+        <label>Max tool steps
+          <input type="number" id="maxSteps" min="1" max="50">
+        </label>
+        <button type="button" class="link" id="resetParams">Reset to defaults</button>
+      </aside>
+    </section>
+
+    <section id="view-models" class="view page hidden">
+      <div class="grid stats" id="stats"></div>
+
+      <div class="card">
+        <h2>Load a model</h2>
+        <form class="row-form" id="loadForm">
+          <label class="grow">Model
+            <input id="loadId" placeholder="Qwen/Qwen2.5-1.5B-Instruct or org/repo/file.gguf" required>
+          </label>
+          <label>Type
+            <select id="loadType">
+              <option value="text">Chat</option>
+              <option value="image">Image</option>
+              <option value="video">Video</option>
+            </select>
+          </label>
+          <label>Context size
+            <input type="number" id="loadCtx" placeholder="Auto" min="512" step="512">
+          </label>
+          <label>GPU layers
+            <input type="number" id="loadGpu" placeholder="All" min="-1">
+          </label>
+          <button class="primary">Load</button>
+          <button type="button" id="unload">Unload</button>
+        </form>
+        <div class="chips" id="presets"></div>
+        <p class="error hidden" id="loadError"></p>
+      </div>
+
+      <div class="card">
+        <h2>Find GGUF models</h2>
+        <form class="row-form" id="searchForm">
+          <label class="grow">Search Hugging Face
+            <input id="searchInput" placeholder="qwen 2.5 gguf">
+          </label>
+          <button>Search</button>
+        </form>
+        <div class="columns">
+          <div id="searchRepos" class="list"></div>
+          <div id="searchFiles" class="list"></div>
         </div>
-    </div>
+      </div>
 
-    <!-- Front-End Logic -->
-    <script>
-/* INJECT_JS */
-</script>
+      <div class="card">
+        <h2>Downloaded</h2>
+        <div id="cached" class="list"></div>
+      </div>
+    </section>
+
+    <section id="view-mcp" class="view page hidden">
+      <div class="card">
+        <h2>Connect an MCP server</h2>
+        <p class="muted">Its tools become available to the model when Tools is on in chat. Servers reconnect by themselves and are remembered between runs.</p>
+        <form class="stack" id="mcpForm">
+          <div class="row-form">
+            <label>Name
+              <input id="mcpId" placeholder="shop" required pattern="[a-zA-Z0-9_\-]+">
+            </label>
+            <label>Transport
+              <select id="mcpTransport">
+                <option value="auto">Auto (HTTP, then SSE)</option>
+                <option value="streamable-http">Streamable HTTP</option>
+                <option value="sse">SSE</option>
+                <option value="stdio">Local command (stdio)</option>
+              </select>
+            </label>
+            <label>Tool timeout (s)
+              <input type="number" id="mcpTimeout" value="120" min="1">
+            </label>
+          </div>
+          <label data-for="remote">URL
+            <input id="mcpUrl" type="url" placeholder="https://example.com/mcp">
+          </label>
+          <label data-for="remote">Headers, one per line
+            <textarea id="mcpHeaders" rows="2" placeholder="Authorization: Bearer ..."></textarea>
+          </label>
+          <div class="row-form hidden" data-for="stdio">
+            <label class="grow">Command
+              <input id="mcpCommand" placeholder="npx">
+            </label>
+            <label class="grow">Arguments
+              <input id="mcpArgs" placeholder="-y @modelcontextprotocol/server-filesystem /content">
+            </label>
+          </div>
+          <div><button class="primary" id="mcpConnect">Connect</button></div>
+        </form>
+      </div>
+      <div id="mcpServers" class="stack"></div>
+      <div class="card">
+        <h2>Use this workstation from elsewhere</h2>
+        <dl class="endpoints" id="endpoints"></dl>
+      </div>
+      <dialog id="toolDialog">
+        <form method="dialog" class="stack" id="toolDialogForm">
+          <h3 id="toolDialogTitle"></h3>
+          <p class="muted" id="toolDialogDesc"></p>
+          <label>Arguments (JSON)
+            <textarea id="toolArgs" rows="6" class="mono"></textarea>
+          </label>
+          <pre class="tool-output hidden" id="toolOutput"></pre>
+          <div class="row-end">
+            <button value="close" formnovalidate>Close</button>
+            <button type="button" class="primary" id="toolRun">Run</button>
+          </div>
+        </form>
+      </dialog>
+    </section>
+
+    <section id="view-image" class="view page hidden">
+      <div class="card">
+        <h2>Generate an image</h2>
+        <p class="muted model-hint" data-kind="image"></p>
+        <form class="stack" id="imageForm">
+          <label>Prompt <textarea id="imagePrompt" rows="3" required></textarea></label>
+          <label>Negative prompt <input id="imageNegative"></label>
+          <div class="row-form">
+            <label>Steps <input type="number" id="imageSteps" value="25" min="1" max="150"></label>
+            <label>Guidance <input type="number" id="imageGuidance" value="7.5" step="0.5" min="0"></label>
+            <label>Width <input type="number" id="imageWidth" value="512" step="64" min="64"></label>
+            <label>Height <input type="number" id="imageHeight" value="512" step="64" min="64"></label>
+            <button class="primary" id="imageGo">Generate</button>
+          </div>
+        </form>
+      </div>
+      <div class="gallery" id="imageGallery"></div>
+    </section>
+
+    <section id="view-video" class="view page hidden">
+      <div class="card">
+        <h2>Generate a video</h2>
+        <p class="muted model-hint" data-kind="video"></p>
+        <form class="stack" id="videoForm">
+          <label>Prompt <textarea id="videoPrompt" rows="3" required></textarea></label>
+          <label>Negative prompt <input id="videoNegative"></label>
+          <div class="row-form">
+            <label>Steps <input type="number" id="videoSteps" value="20" min="1" max="150"></label>
+            <label>Frames <input type="number" id="videoFrames" value="16" min="1"></label>
+            <label>FPS <input type="number" id="videoFps" value="8" min="1"></label>
+            <label>Start image <input type="file" id="videoImage" accept="image/*"></label>
+            <button class="primary" id="videoGo">Generate</button>
+            <button type="button" class="danger hidden" id="videoCancel">Cancel</button>
+          </div>
+        </form>
+        <div class="progress hidden" id="videoBar"><div id="videoBarFill"></div></div>
+        <p class="muted hidden" id="videoStatus"></p>
+      </div>
+      <div class="row-end hidden" id="mergeRow"><button id="mergeVideos">Merge selected</button></div>
+      <div class="gallery" id="videoGallery"></div>
+    </section>
+
+    <section id="view-settings" class="view page hidden">
+      <div class="card">
+        <h2>Hugging Face</h2>
+        <label>Access token, for gated models
+          <input type="password" id="hfToken" placeholder="hf_..." autocomplete="off">
+        </label>
+      </div>
+      <div class="card">
+        <h2>Google Drive</h2>
+        <p class="muted" id="driveStatus"></p>
+        <label class="toggle"><input type="checkbox" id="driveMode"> <span>Store new downloads in Drive</span></label>
+      </div>
+      <div class="card">
+        <h2>System</h2>
+        <dl class="endpoints" id="systemInfo"></dl>
+      </div>
+    </section>
+  </main>
+
+  <div id="toasts" role="status" aria-live="polite"></div>
 </body>
 </html>

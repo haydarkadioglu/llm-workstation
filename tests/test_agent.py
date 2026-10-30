@@ -32,11 +32,21 @@ def test_multi_step_chain_feeds_results_back(make_manager):
 
     assert [e["name"] for e in of_type(events, "tool_call")] == ["find", "price"]
     assert "".join(e["text"] for e in of_type(events, "token")) == "It costs 5."
-    last_prompt = manager.backend.prompts[-1]
+    system, *last_prompt = manager.backend.prompts[-1]
+    assert system["role"] == "system"
     assert [m["role"] for m in last_prompt] == ["user", "assistant", "tool", "assistant", "tool"]
     assert last_prompt[2]["content"] == "KB-1"
     assert last_prompt[2]["tool_call_id"] == last_prompt[1]["tool_calls"][0]["id"]
     assert of_type(events, "done")[0]["finish_reason"] == "stop"
+
+
+def test_batched_calls_run_one_at_a_time(make_manager):
+    manager = make_manager([call("find", q="kb") + call("price", sku="INVENTED"), call("price", sku="KB-1"), "done"])
+    ran = []
+    agent(manager, lambda name, args: ran.append(args) or {"is_error": False, "text": "KB-1"})
+    assert ran == [{"q": "kb"}, {"sku": "KB-1"}]
+    assert len(manager.backend.prompts[1][-2]["tool_calls"]) == 1
+    assert "price" in manager.backend.prompts[1][-1]["content"]
 
 
 def test_plain_answer_runs_no_tools(make_manager):

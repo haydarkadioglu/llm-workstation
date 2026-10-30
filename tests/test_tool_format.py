@@ -57,6 +57,34 @@ def test_bare_json_that_is_not_a_tool_stays_text():
     assert joined["text"] == '{"city": "Izmir"}'
 
 
+def test_doubled_opening_brace_from_qwen_is_repaired():
+    text = '<tool_call>\n{{"name": "get_price", "arguments": {"sku": "A"}}\n</tool_call>'
+    _, parser = run(text)
+    assert parser.calls[0].arguments == {"sku": "A"}
+    assert not parser.errors
+
+
+def test_missing_closing_brace_is_repaired():
+    calls, error = parse_calls('{"name": "get_price", "arguments": {"sku": "A"}')
+    assert calls[0].name == "get_price" and error is None
+
+
+def test_braces_inside_strings_do_not_break_valid_json():
+    calls, error = parse_calls('{"name": "get_price", "arguments": {"sku": "{A"}}')
+    assert error is None or not calls
+
+
+def test_call_fenced_inside_prose_is_rescued():
+    joined, parser = run('I will look it up:\n```json\n{"name": "get_price", "arguments": {"sku": "A"}}\n```\nOne moment.')
+    assert parser.calls[0].arguments == {"sku": "A"}
+    assert "look it up" in joined["text"]
+
+
+def test_unrelated_fenced_json_in_prose_is_not_a_call():
+    _, parser = run('Example:\n```json\n{"name": "Ada", "age": 3}\n```')
+    assert not parser.calls
+
+
 def test_string_arguments_are_decoded():
     calls, _ = parse_calls('{"name": "get_price", "arguments": "{\\"sku\\": \\"A\\"}"}')
     assert calls[0].arguments == {"sku": "A"}

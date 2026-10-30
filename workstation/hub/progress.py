@@ -1,11 +1,10 @@
+import time
 from contextlib import contextmanager
 
 import tqdm
 
 
-def _format_speed(rate) -> str:
-    if rate is None:
-        return ""
+def _format_speed(rate: float) -> str:
     for limit, unit in ((1024 ** 2, "MB/s"), (1024, "KB/s")):
         if rate > limit:
             return f"{rate / limit:.1f} {unit}"
@@ -25,14 +24,18 @@ def track_downloads(state):
 
     def patched_init(self, *args, **kwargs):
         original_init(self, *args, **kwargs)
+        self.tracked_done = kwargs.get("initial", 0) or 0
+        self.tracked_start = time.time()
         state.loading_progress = 0
         state.loading_speed = ""
 
     def patched_update(self, n=1):
         result = original_update(self, n)
+        # tqdm turns itself off without a terminal and then stops counting, so count here.
+        self.tracked_done += n or 0
         if self.total:
-            pct = int(self.n / self.total * 100)
-            speed = _format_speed(self.format_dict.get("rate"))
+            pct = min(int(self.tracked_done / self.total * 100), 100)
+            speed = _format_speed(self.tracked_done / max(time.time() - self.tracked_start, 0.001))
             state.loading_progress = pct
             state.loading_speed = speed
             state.status = f"Downloading: {pct}%" + (f" ({speed})" if speed else "")

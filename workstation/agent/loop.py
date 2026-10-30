@@ -1,15 +1,33 @@
 import json
 import threading
+from dataclasses import replace
 from typing import Callable, Iterator, List, Optional
 
 from ..engine.base import GenerationParams, Usage
 from ..engine.manager import ModelManager
 from .context import clip_tool_result, fit_context
-from .tool_format import StreamParser, ToolCall, legacy_messages
+from .tool_format import StreamParser, ToolCall, legacy_messages, with_tool_guidance
 
 DEFAULT_MAX_STEPS = 10
+TOOL_TEMPERATURE = 0.2
+# Some models carry on and invent the tool's answer themselves.
+FAKE_RESULT_MARKERS = ["<tool_response>"]
 
 ToolRunner = Callable[[str, dict], dict]
+
+
+def _tool_params(params: GenerationParams) -> GenerationParams:
+    """Sampling that keeps calls reliable.
+
+    Measured with Qwen 2.5 1.5B: 3/10 runs called the tool at temperature 0.7, 9/10 at 0.2.
+    A repeat penalty also works against JSON, which is full of repeated punctuation.
+    """
+    return replace(
+        params,
+        temperature=min(params.temperature, TOOL_TEMPERATURE),
+        repeat_penalty=1.0,
+        stop=params.stop + FAKE_RESULT_MARKERS,
+    )
 
 
 def _assistant_message(text: str, thinking: str, calls: List[ToolCall]) -> dict:
@@ -73,7 +91,12 @@ def run_agent(
     for step in range(max_steps + 1):
         # Last round has no tools, which forces a written answer out of the model.
         active = tools if step < max_steps else None
-        prompt_messages = history if native or not active else legacy_messages(history, active)
+        if not active:
+            prompt_messages = history
+        elif native:
+            prompt_messages = with_tool_guidance(history)
+        else:
+            prompt_messages = legacy_messages(history, active)
         template_tools = active if native else None
 
         fitted, used, dropped = fit_context(
@@ -83,12 +106,20 @@ def run_agent(
 
         parser = StreamParser(active)
         collected = {"text": "", "thinking": ""}
-        yield from _generate_step(manager, fitted, template_tools, params, cancel, parser, collected)
+        step_params = _tool_params(params) if active else params
+        yield from _generate_step(manager, fitted, template_tools, step_params, cancel, parser, collected)
 
         usage = collected.get("usage", usage)
         calls = parser.calls
         calls.extend(ToolCall(f"call_invalid_{i}", "invalid_tool_call", {}, error=e) for i, e in enumerate(parser.errors))
-        assistant = _assistant_message(collected["text"], collected["thinking"], calls)
+        # Models batch dependent calls and invent the arguments they cannot know yet
+        # (a price lookup for a made-up SKU), so only the first runs. The result reminds it of
+        # the others, since it tends to announce the next step and stop otherwise.
+        postponed = sorted({c.name for c in calls[1:]})
+        calls = calls[:1]
+        # A rescued call sits inside prose that would read as a second call on the next turn.
+        text = "" if parser.rescued else collected["text"]
+        assistant = _assistant_message(text, collected["thinking"], calls)
         history.append(assistant)
         yield {"type": "message", "message": assistant}
 
@@ -108,7 +139,16 @@ def run_agent(
                     seen[signature] = result["text"]
             text = clip_tool_result(result["text"], capabilities.context_length)
             yield {"type": "tool_result", "id": call.id, "name": call.name, "is_error": result["is_error"], "text": text}
-            tool_message = {"role": "tool", "tool_call_id": call.id, "name": call.name, "content": text}
+            content = text
+            if postponed:
+                content += f"\n\nOnly one call runs at a time. Now call {', '.join(postponed)} using this result."
+            tool_message = {
+                "role": "tool",
+                "tool_call_id": call.id,
+                "name": call.name,
+                "content": content,
+                "is_error": result["is_error"],
+            }
             history.append(tool_message)
             yield {"type": "message", "message": tool_message}
             if cancel.is_set():

@@ -1,4 +1,5 @@
 import json
+import re
 import uuid
 from dataclasses import dataclass
 from typing import Any, List, Optional, Tuple
@@ -8,6 +9,12 @@ TOOL_TAGS = {"<tool_call>": "</tool_call>", "<|tool_call|>": "<|/tool_call|>"}
 # These run to the end of the response, there is no closing marker.
 TOOL_PREFIXES = ("[TOOL_CALLS]", "<|python_tag|>")
 JSON_STARTS = ("{", "[", "```json")
+TOOL_GUIDANCE = (
+    "Never explain how to use a tool. If a tool is relevant, your whole reply must be the tool call. "
+    "If one call depends on another's result, make them one at a time. "
+    "If no tool is relevant, just answer normally."
+)
+FENCED_JSON = re.compile(r"```(?:json)?\s*(\{.*?\})\s*```", re.DOTALL)
 
 
 @dataclass
@@ -55,9 +62,17 @@ def _strip_fence(text: str) -> str:
     return text.strip()
 
 
+def _repair_braces(text: str) -> str:
+    """Qwen 2.5 often opens with '{{', and small models drop the last '}'."""
+    if text.startswith("{{"):
+        text = "{" + text.lstrip("{ \n")
+    missing = text.count("{") - text.count("}")
+    return text + "}" * missing if missing > 0 else text
+
+
 def parse_calls(text: str) -> Tuple[List[ToolCall], Optional[str]]:
     """Parse a tool call payload. Returns (calls, error when it is broken JSON)."""
-    text = _strip_fence(text)
+    text = _repair_braces(_strip_fence(text))
     decoder = json.JSONDecoder()
     items: List[Any] = []
     index = 0
@@ -68,7 +83,7 @@ def parse_calls(text: str) -> Tuple[List[ToolCall], Optional[str]]:
         try:
             value, index = decoder.raw_decode(text, index)
         except ValueError as err:
-            return [], f"Invalid tool call JSON: {err}"
+            return [], f"Invalid tool call JSON ({err}): {text[:300]}"
         items.extend(value if isinstance(value, list) else [value])
     calls = [call for call in map(_to_call, items) if call]
     return calls, None
@@ -85,6 +100,8 @@ class StreamParser:
         self.tool_names = {t["function"]["name"] for t in tools or []}
         self.detect_tools = bool(tools)
         self.buffer = ""
+        self.text = ""
+        self.rescued = False
         self.mode = "text"  # text | thinking | tool | tool_tail | maybe_json
         self.closer = ""
         self.at_start = True
@@ -180,6 +197,7 @@ class StreamParser:
                 progressed = self._step_closed(out)
             else:
                 progressed = False
+        self.text += "".join(text for kind, text in out if kind == "text")
         return out
 
     def finish(self) -> List[Tuple[str, str]]:
@@ -199,7 +217,28 @@ class StreamParser:
                 out.append(("text", rest))
         elif rest:
             out.append(("text", rest))
+
+        self.text += "".join(text for kind, text in out if kind == "text")
+        if self.detect_tools and not self.calls and not self.errors:
+            self._rescue_fenced_call()
         return out
+
+    def _rescue_fenced_call(self) -> None:
+        """Weak models sometimes write the call inside prose instead of emitting it."""
+        for block in FENCED_JSON.findall(self.text):
+            calls, error = parse_calls(block)
+            known = [c for c in calls if c.name in self.tool_names]
+            if known and not error:
+                self.calls.append(known[0])
+                self.rescued = True
+                return
+
+
+def with_tool_guidance(messages: List[dict]) -> List[dict]:
+    if messages and messages[0]["role"] == "system":
+        first = {**messages[0], "content": f"{messages[0]['content']}\n\n{TOOL_GUIDANCE}"}
+        return [first] + messages[1:]
+    return [{"role": "system", "content": TOOL_GUIDANCE}] + messages
 
 
 def legacy_prompt(tools: List[dict]) -> str:
