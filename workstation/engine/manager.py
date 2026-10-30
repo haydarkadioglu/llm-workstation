@@ -6,6 +6,7 @@ from typing import Iterator, List, Optional, Union
 from ..config import DATA_DIR, read_json, write_json
 from ..hub import cache
 from ..hub.download import DownloadStopped, run_download
+from ..secrets import friendly_error, resolve_token
 from ..telemetry import free_vram_mb
 from .base import ChatBackend, GenerationParams, Message, Usage
 
@@ -77,7 +78,7 @@ class ModelManager:
 
     def load(self, model_id: str, token: Optional[str] = None, kind: str = "text", options: Optional[dict] = None) -> bool:
         options = {**saved_model_settings(model_id), **(options or {})}
-        token = (token or "").strip() or None
+        token = resolve_token(token)
         self.paused_load = None
         self._interrupt()
         with self.lock:
@@ -110,7 +111,7 @@ class ModelManager:
                 self._release()
                 self.load_state = "idle"
                 self.status = "Error loading model"
-                self.error_message = str(err)
+                self.error_message = friendly_error(str(err), token)
                 print(f"[Model] Load failed: {err}")
                 return False
 

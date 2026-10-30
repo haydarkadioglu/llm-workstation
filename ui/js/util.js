@@ -60,6 +60,11 @@ export const store = {
       localStorage.setItem(key, JSON.stringify(value));
     } catch {}
   },
+  remove(key) {
+    try {
+      localStorage.removeItem(key);
+    } catch {}
+  },
 };
 
 export function readFileAsDataUrl(file) {

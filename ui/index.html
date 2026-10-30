@@ -316,9 +316,15 @@
     <section id="view-settings" class="view page hidden">
       <div class="card">
         <h2>Hugging Face</h2>
-        <label>Access token, for gated models
-          <input type="password" id="hfToken" placeholder="hf_..." autocomplete="off">
-        </label>
+        <p class="muted">Optional. Only gated and private models need a token. It is saved on this server in plain text and never shown again. Anyone with this app's URL can download with it, so use a read-only token.</p>
+        <p id="hfTokenStatus"></p>
+        <form class="row-form" id="hfTokenForm">
+          <label class="grow">Access token
+            <input type="password" id="hfToken" placeholder="hf_..." autocomplete="off" required>
+          </label>
+          <button class="primary" id="hfTokenSave">Check and save</button>
+          <button type="button" class="danger hidden" id="hfTokenRemove">Remove</button>
+        </form>
       </div>
       <div class="card">
         <h2>Google Drive</h2>

@@ -27,7 +27,8 @@ def _headers(url: str, offset: int, token: Optional[str]) -> dict:
     headers = {"User-Agent": USER_AGENT}
     if offset:
         headers["Range"] = f"bytes={offset}-"
-    if token and (urlparse(url).hostname or "").endswith("huggingface.co"):
+    host = urlparse(url).hostname or ""
+    if token and (host == "huggingface.co" or host.endswith(".huggingface.co")):
         headers["Authorization"] = f"Bearer {token}"
     return headers
 

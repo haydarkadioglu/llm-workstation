@@ -6,6 +6,7 @@ from huggingface_hub import HfApi, constants, hf_hub_download, scan_cache_dir, s
 from huggingface_hub.utils import filter_repo_objects
 
 from ..engine.gguf import shard_names, split_gguf_id
+from ..secrets import resolve_token
 from . import drive
 
 GB = 1024 ** 3
@@ -142,7 +143,7 @@ def search_gguf(query: Optional[str]) -> List[dict]:
 
 def list_gguf_files(repo_id: str) -> List[dict]:
     files = {}
-    for item in HfApi().list_repo_tree(repo_id, recursive=True):
+    for item in HfApi().list_repo_tree(repo_id, recursive=True, token=resolve_token()):
         if item.path.endswith(".gguf"):
             files[item.path] = getattr(item, "size", 0) or 0
 

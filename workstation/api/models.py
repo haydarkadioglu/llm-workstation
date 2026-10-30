@@ -2,8 +2,11 @@ import threading
 from typing import Optional
 
 from fastapi import APIRouter, Body, HTTPException, Request
+from huggingface_hub import HfApi
+from huggingface_hub.errors import HfHubHTTPError
 from pydantic import BaseModel
 
+from .. import secrets
 from ..engine.manager import saved_model_settings
 from ..hub import cache, drive
 
@@ -18,8 +21,39 @@ class LoadPayload(BaseModel):
     n_gpu_layers: Optional[int] = None
 
 
+class TokenPayload(BaseModel):
+    token: str
+
+
 class DriveModePayload(BaseModel):
     enabled: bool
+
+
+@router.get("/api/hf/token")
+def hf_token_status():
+    return secrets.token_status()
+
+
+@router.post("/api/hf/token")
+def save_hf_token(payload: TokenPayload):
+    token = payload.token.strip()
+    try:
+        account = HfApi().whoami(token=token)["name"]
+    except HfHubHTTPError as err:
+        status = err.response.status_code if err.response is not None else 502
+        if status in (401, 403):
+            raise HTTPException(status_code=400, detail="Hugging Face rejected this token.")
+        raise HTTPException(status_code=502, detail=f"Could not check the token: {err}")
+    except Exception as err:  # huggingface_hub 2 raises httpx errors, which are not OSError
+        raise HTTPException(status_code=502, detail=f"Could not reach Hugging Face: {err}")
+    secrets.save_token(token, account)
+    return secrets.token_status()
+
+
+@router.delete("/api/hf/token")
+def delete_hf_token():
+    secrets.clear_token()
+    return secrets.token_status()
 
 
 @router.post("/api/model/load")
