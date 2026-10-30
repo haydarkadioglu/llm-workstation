@@ -187,6 +187,17 @@ nav a.active { background: var(--surface-2); color: var(--text); font-weight: 60
 .chat-entry:hover .remove, .chat-entry .remove:focus-visible { visibility: visible; }
 
 .chat-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.chat-tabs { display: flex; justify-content: center; gap: 4px; padding: 8px 16px 0; border-bottom: 1px solid var(--border); }
+.chat-tabs a { padding: 6px 14px 8px; border-bottom: 2px solid transparent; color: var(--muted); text-decoration: none; font-size: 14px; }
+.chat-tabs a:hover { color: var(--text); }
+.chat-tabs a.active { border-bottom-color: var(--accent); color: var(--text); font-weight: 600; }
+.chat-pane { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.chat-pane.page { display: block; }
+.pane-hint { margin-bottom: 14px; }
+.tool-action { margin-top: 6px; font-size: 13px; }
+.approval { margin: 6px 0; padding: 10px 12px; background: var(--surface); border: 1px solid var(--accent); border-radius: 6px; }
+.approval p { margin-bottom: 8px; overflow-wrap: anywhere; }
+.approval .row-end { justify-content: flex-start; }
 .messages { flex: 1; overflow-y: auto; padding: 18px 16px; scroll-behavior: auto; }
 .messages > * { max-width: 800px; margin-left: auto; margin-right: auto; }
 .empty { padding-top: 16vh; text-align: center; color: var(--muted); }

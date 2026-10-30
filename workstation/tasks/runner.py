@@ -5,7 +5,7 @@ import uuid
 from pathlib import Path
 from typing import List, Optional
 
-from ..agent.builtin_tools import WEB_SEARCH, tool_runner
+from ..agent.builtin_tools import USE_SKILL, WEB_SEARCH, tool_runner
 from ..agent.loop import run_agent
 from ..config import DATA_DIR, read_json, write_json
 from ..engine.base import GenerationParams
@@ -157,7 +157,9 @@ class TaskManager:
                 self._run(task)
 
     def _tools(self) -> List[dict]:
-        return MEMORY_TOOLS + [WEB_SEARCH] + self.registry.openai_tools()
+        tools = MEMORY_TOOLS + [WEB_SEARCH] + self.registry.openai_tools()
+        length = self.manager.backend.capabilities.context_length
+        return tools + [USE_SKILL] if self.skills.needs_lookup(length) else tools
 
     def _record(self, task: dict, event: dict) -> None:
         kind = event["type"]
@@ -177,7 +179,7 @@ class TaskManager:
             self._log(task, "tool_result", name=event["name"], is_error=event["is_error"], text=event["text"][:EVENT_TEXT_LIMIT])
 
     def _run_round(self, task: dict, memory: TaskMemory, cancel: threading.Event) -> None:
-        external = tool_runner(self.registry)
+        external = tool_runner(self.registry, self.skills)
 
         def run_tool(name: str, arguments: dict) -> dict:
             if name not in MEMORY_TOOL_NAMES:

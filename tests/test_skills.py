@@ -67,9 +67,13 @@ def test_prompt_is_empty_without_skills(store):
     assert store.prompt(1000) == ""
 
 
-def test_prompt_respects_size_limit(store):
+def test_large_skills_switch_to_lookup(store):
     store.save(Skill("big", "d", "x" * 5000))
-    assert len(store.prompt(100)) == 100
+    assert store.needs_lookup(100)
+    assert "use_skill" in store.prompt(100)
+    assert "xxx" not in store.prompt(100)
+    assert not store.needs_lookup(10000)
+    assert "xxx" in store.prompt(10000)
 
 
 def test_zip_moves_skills_to_another_machine(store, tmp_path):

@@ -20,10 +20,36 @@ WEB_SEARCH = {
 }
 
 
-def tool_runner(registry):
+USE_SKILL = {
+    "type": "function",
+    "function": {
+        "name": "use_skill",
+        "description": "Read the full instructions of one of your skills before following it.",
+        "parameters": {
+            "type": "object",
+            "properties": {"name": {"type": "string", "description": "The skill's name"}},
+            "required": ["name"],
+        },
+    },
+}
+
+
+def _read_skill(skills, name: str) -> dict:
+    try:
+        skill = skills.get(name)
+    except ValueError:
+        skill = None
+    if not skill:
+        return {"is_error": True, "text": f"There is no skill '{name}'."}
+    return {"is_error": False, "text": skill.instructions}
+
+
+def tool_runner(registry, skills=None):
     def run(name: str, arguments: dict) -> dict:
         if name == WEB_SEARCH["function"]["name"]:
             return web_search(arguments.get("query", ""))
+        if skills and name == USE_SKILL["function"]["name"]:
+            return _read_skill(skills, str(arguments.get("name", "")))
         return registry.call(name, arguments)
 
     return run

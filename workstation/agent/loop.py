@@ -5,6 +5,7 @@ from typing import Callable, Iterator, List, Optional
 
 from ..engine.base import GenerationParams, Usage
 from ..engine.manager import ModelManager
+from .approvals import Approvals
 from .context import clip_tool_result, fit_context
 from .tool_format import StreamParser, ToolCall, legacy_messages, with_tool_guidance
 
@@ -80,21 +81,25 @@ def run_agent(
     cancel: threading.Event,
     max_steps: int = DEFAULT_MAX_STEPS,
     prepare: Callable[[List[dict]], List[dict]] = lambda messages: messages,
+    approvals: Optional[Approvals] = None,
 ) -> Iterator[dict]:
     """Generate, execute any tool calls and repeat until the model answers.
 
+    `tools` may be a function, read on every step so that tools gained mid-run are usable.
     `prepare` rewrites the messages before each step without touching the history.
     """
     history = list(messages)
     capabilities = manager.backend.capabilities
-    native = capabilities.tools or not tools
-    known = {t["function"]["name"] for t in tools}
     seen: dict = {}
     usage = Usage()
+    tools_spent = False
 
     for step in range(max_steps + 1):
+        current = tools() if callable(tools) else tools
+        native = capabilities.tools or not current
+        known = {t["function"]["name"] for t in current}
         # Last round has no tools, which forces a written answer out of the model.
-        active = tools if step < max_steps else None
+        active = current if step < max_steps and not tools_spent else None
         prompt_messages = prepare(history)
         if active and native:
             prompt_messages = with_tool_guidance(prompt_messages)
@@ -137,11 +142,20 @@ def run_agent(
                 repeated = True
                 result = {"is_error": False, "text": f"{seen[signature]}\n(Same call as before, answer with this result.)"}
             else:
-                result = _run_call(call, known, run_tool)
+                allowed = True
+                if approvals and call.name in approvals.tools:
+                    ticket = approvals.open()
+                    yield {"type": "approval", "id": ticket, "tool_call_id": call.id, "name": call.name, "arguments": call.arguments}
+                    allowed = approvals.wait(ticket, cancel)
+                if allowed:
+                    result = _run_call(call, known, run_tool)
+                else:
+                    result = {"is_error": True, "text": "The user did not allow this. Do not try again."}
                 if not result["is_error"]:  # a failed call may be worth one more try
                     seen[signature] = result["text"]
             text = clip_tool_result(result["text"], capabilities.context_length)
-            yield {"type": "tool_result", "id": call.id, "name": call.name, "is_error": result["is_error"], "text": text}
+            ui = result.get("ui")
+            yield {"type": "tool_result", "id": call.id, "name": call.name, "is_error": result["is_error"], "text": text, "ui": ui}
             content = text
             if postponed:
                 content += f"\n\nOnly one call runs at a time. Now call {', '.join(postponed)} using this result."
@@ -151,6 +165,7 @@ def run_agent(
                 "name": call.name,
                 "content": content,
                 "is_error": result["is_error"],
+                "ui": ui,
             }
             history.append(tool_message)
             yield {"type": "message", "message": tool_message}
@@ -159,7 +174,7 @@ def run_agent(
         if cancel.is_set():
             break
         if repeated:
-            tools = []
+            tools_spent = True
 
     yield {
         "type": "done",

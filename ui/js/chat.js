@@ -1,6 +1,8 @@
 import { $, api, el, newId, readFileAsDataUrl, showError, store, toast } from "./util.js";
 import { finishMarkdown, renderMarkdown } from "./markdown.js";
 import { requestParams } from "./params.js";
+import { refresh as refreshSkills } from "./skills.js";
+import { openTask } from "./tasks.js";
 
 let chat = blankChat();
 let controller = null;
@@ -37,11 +39,52 @@ function toolCard(name, args) {
   return { block, body, label, name };
 }
 
-function finishToolCard(card, text, isError) {
+function resultAction(ui) {
+  if (ui?.type === "task") {
+    return el("button", { class: "link tool-action", type: "button", textContent: "Open task", onclick: () => openTask(ui.id) });
+  }
+  if (ui?.type === "skill") {
+    return el("button", {
+      class: "link tool-action",
+      type: "button",
+      textContent: `Remove skill ${ui.name}`,
+      onclick: async (event) => {
+        await api.del(`/api/skills/${ui.name}`).catch(showError);
+        event.target.remove();
+        refreshSkills();
+      },
+    });
+  }
+  return null;
+}
+
+function finishToolCard(card, text, isError, ui) {
   card.label.textContent = `${isError ? "Failed" : "Used"} ${card.name}`;
   card.block.classList.toggle("failed", isError);
   if (isError) card.block.open = true;
   card.body.textContent += `\n\n${text}`;
+  const action = resultAction(ui);
+  if (action) card.block.after(action);
+  if (ui?.type === "skill") refreshSkills();
+}
+
+function approvalCard(event) {
+  const answer = (allowed) => async () => {
+    card.replaceChildren(el("p", { class: "muted", textContent: allowed ? "Allowed." : "Declined." }));
+    await api.post(`/api/chat/approval/${event.id}`, { allowed }).catch(showError);
+  };
+  const card = el(
+    "div",
+    { class: "approval" },
+    el("p", { textContent: `The model wants to connect the MCP server "${event.arguments.name}" at ${event.arguments.url}. Its tools will be able to act for you.` }),
+    el(
+      "div",
+      { class: "row-end" },
+      el("button", { class: "primary", type: "button", textContent: "Allow", onclick: answer(true) }),
+      el("button", { type: "button", textContent: "Decline", onclick: answer(false) }),
+    ),
+  );
+  return card;
 }
 
 function userMessage(message, index) {
@@ -109,7 +152,7 @@ function renderChat() {
     }
     if (message.role === "tool") {
       const card = cards[message.tool_call_id];
-      if (card) finishToolCard(card, message.content, Boolean(message.is_error));
+      if (card) finishToolCard(card, message.content, Boolean(message.is_error), message.ui);
       return;
     }
     if (message.thinking) turn.append(thinkingBlock(message.thinking).block);
@@ -262,7 +305,12 @@ class TurnView {
 
   finishTool(event) {
     const card = this.cards[event.id];
-    if (card) finishToolCard(card, event.text, event.is_error);
+    if (card) finishToolCard(card, event.text, event.is_error, event.ui);
+    this.scroll();
+  }
+
+  addApproval(event) {
+    this.turn.append(approvalCard(event));
     this.scroll();
   }
 
@@ -291,6 +339,9 @@ function handleEvent(event, view) {
       break;
     case "tool_result":
       view.finishTool(event);
+      break;
+    case "approval":
+      view.addApproval(event);
       break;
     case "message":
       chat.messages.push(event.message);

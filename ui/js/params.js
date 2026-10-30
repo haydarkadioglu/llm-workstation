@@ -29,7 +29,7 @@ const DEFAULTS = {
   seed: "",
   stop: "",
   max_steps: 10,
-  agent_mode: false,
+  agent_mode: true,
 };
 
 let values = { ...DEFAULTS, ...store.get("params", {}) };

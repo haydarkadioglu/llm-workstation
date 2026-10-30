@@ -79,6 +79,11 @@ async function refreshDetail() {
   lastSeq = task.seq;
 }
 
+export function openTask(id) {
+  location.hash = "tasks";
+  select(id);
+}
+
 function select(id) {
   selected = id;
   lastSeq = 0;
@@ -96,6 +101,8 @@ async function refreshList() {
     if (ACTIVE.includes(before) && !ACTIVE.includes(task.status)) toast(`Task ${task.status}: ${task.title}`);
     knownStatus[task.id] = task.status;
   }
+  const running = tasks.filter((task) => ACTIVE.includes(task.status)).length;
+  $("taskCount").textContent = running ? `(${running})` : "";
   const list = $("taskList");
   list.replaceChildren(...tasks.map((task) =>
     el(
@@ -105,7 +112,7 @@ async function refreshList() {
       badge(task.status),
     ),
   ));
-  if (!tasks.length) list.append(el("p", { class: "muted", textContent: "No tasks yet." }));
+  if (!tasks.length) list.append(el("p", { class: "muted", textContent: "No tasks yet. Ask for a big job in the chat." }));
 }
 
 async function act(path) {
@@ -119,19 +126,6 @@ async function act(path) {
 }
 
 export function initTasks() {
-  $("taskForm").addEventListener("submit", async (event) => {
-    event.preventDefault();
-    try {
-      const { id } = await api.post("/api/tasks", {
-        goal: $("taskGoal").value,
-        max_steps: Number($("taskSteps").value) || 50,
-      });
-      $("taskGoal").value = "";
-      select(id);
-    } catch (err) {
-      showError(err);
-    }
-  });
   $("taskCancel").addEventListener("click", () => act("cancel"));
   $("taskResume").addEventListener("click", () => act("resume"));
   $("taskDelete").addEventListener("click", async () => {

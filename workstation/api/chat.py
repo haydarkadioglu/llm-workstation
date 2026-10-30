@@ -5,7 +5,6 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict
 
-from ..agent.builtin_tools import WEB_SEARCH, tool_runner
 from ..agent.loop import DEFAULT_MAX_STEPS, run_agent
 from ..config import DATA_DIR, read_json, write_json
 from ..engine.base import GenerationParams
@@ -39,19 +38,18 @@ class ChatPayload(BaseModel):
 @router.post("/api/chat")
 async def chat(payload: ChatPayload, request: Request):
     manager = request.app.state.manager
-    registry = request.app.state.registry
+    chat_tools = request.app.state.chat_tools
+    approvals = request.app.state.approvals
     if not manager.backend:
         raise HTTPException(status_code=503, detail="No chat model is loaded.")
 
-    skills = request.app.state.skills.prompt(manager.backend.capabilities.context_length)
-    system = "\n\n".join(part for part in (payload.system_prompt, skills) if part)
-
     messages: List[Dict[str, Any]] = []
-    if system:
-        messages.append({"role": "system", "content": system})
+    if payload.system_prompt:
+        messages.append({"role": "system", "content": payload.system_prompt})
     messages.extend(m.model_dump() for m in payload.messages)
 
-    tools = [WEB_SEARCH] + registry.openai_tools() if payload.agent_mode else []
+    tools_on = payload.agent_mode
+    tools = chat_tools.definitions if tools_on else []
     params = GenerationParams(
         temperature=payload.temperature,
         top_p=payload.top_p,
@@ -67,7 +65,17 @@ async def chat(payload: ChatPayload, request: Request):
     async def events():
         try:
             async for event in iterate_in_thread(
-                lambda: run_agent(manager, messages, tools, tool_runner(registry), params, cancel, payload.max_steps),
+                lambda: run_agent(
+                    manager,
+                    messages,
+                    tools,
+                    chat_tools.run,
+                    params,
+                    cancel,
+                    payload.max_steps,
+                    lambda history: chat_tools.inject(history, tools_on),
+                    approvals,
+                ),
                 cancel,
             ):
                 yield sse(event)
@@ -75,6 +83,17 @@ async def chat(payload: ChatPayload, request: Request):
             yield sse({"type": "error", "message": str(err)})
 
     return StreamingResponse(events(), media_type="text/event-stream", headers={"Cache-Control": "no-cache"})
+
+
+class ApprovalPayload(BaseModel):
+    allowed: bool
+
+
+@router.post("/api/chat/approval/{ticket}")
+def answer_approval(ticket: str, payload: ApprovalPayload, request: Request):
+    if not request.app.state.approvals.answer(ticket, payload.allowed):
+        raise HTTPException(status_code=404, detail="This request is no longer waiting.")
+    return {"status": "ok"}
 
 
 def _chat_path(chat_id: str):

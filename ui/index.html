@@ -15,8 +15,6 @@
     <strong class="brand">LLM Workstation</strong>
     <nav id="nav" aria-label="Sections">
       <a href="#chat">Chat</a>
-      <a href="#tasks">Tasks</a>
-      <a href="#skills">Skills</a>
       <a href="#models">Chat models</a>
       <a href="#mcp">MCP</a>
       <a href="#image">Image</a>
@@ -45,6 +43,12 @@
       </aside>
 
       <div class="chat-main">
+        <div class="chat-tabs" id="chatTabs">
+          <a href="#chat">Conversation</a>
+          <a href="#tasks">Tasks <span class="muted" id="taskCount"></span></a>
+          <a href="#skills">Skills <span class="muted" id="skillCount"></span></a>
+        </div>
+        <div class="chat-pane" id="pane-chat">
         <div class="messages" id="messages"></div>
         <form class="composer" id="composer">
           <div class="attachment hidden" id="attachment">
@@ -53,7 +57,7 @@
           </div>
           <textarea id="input" rows="1" placeholder="Message the model" aria-label="Message"></textarea>
           <div class="composer-row">
-            <label class="toggle" title="Let the model call web search and connected MCP tools">
+            <label class="toggle" title="Let the model use its abilities: web search, MCP tools, tasks and skills">
               <input type="checkbox" id="agentMode"> <span>Tools</span>
               <span class="muted" id="toolCount"></span>
             </label>
@@ -61,12 +65,66 @@
             <input type="file" id="attachInput" accept="image/*" hidden>
             <button type="button" id="toggleParams">Parameters</button>
             <span class="spacer"></span>
-            <a class="muted" href="#skills" id="skillCount"></a>
             <span class="muted mono" id="contextMeter"></span>
             <button type="button" class="danger hidden" id="stop">Stop</button>
             <button type="submit" class="primary" id="send">Send</button>
           </div>
         </form>
+        </div>
+        <section id="pane-tasks" class="chat-pane page hidden">
+          <p class="muted pane-hint">Ask for a big job in the chat and the model starts a task when it fits. Tasks keep running when this page is closed, and every step is saved, so a stopped task can continue.</p>
+          <div class="columns tasks">
+            <div class="card"><h2>Tasks</h2><div id="taskList" class="list"></div></div>
+            <div class="card hidden" id="taskDetail">
+              <div class="server-head">
+                <h3 id="taskTitle"></h3>
+                <span class="badge" id="taskStatus"></span>
+                <span class="spacer"></span>
+                <button type="button" class="danger hidden" id="taskCancel">Stop</button>
+                <button type="button" class="hidden" id="taskResume">Continue</button>
+                <button type="button" class="danger" id="taskDelete">Delete</button>
+              </div>
+              <p class="muted" id="taskMeta"></p>
+              <p class="error hidden" id="taskError"></p>
+              <div id="taskResult" class="md hidden"></div>
+              <div id="taskPlan"></div>
+              <div id="taskNotes"></div>
+              <h3>Activity</h3>
+              <div id="taskLog" class="task-log"></div>
+            </div>
+          </div>
+        </section>
+        <section id="pane-skills" class="chat-pane page hidden">
+          <p class="muted pane-hint">Tell the model in the chat what to remember, and it writes a skill. Skills that are on are followed in chats and tasks.</p>
+          <div class="card hidden" id="skillEditor">
+            <h2>Review</h2>
+            <form class="stack" id="skillForm">
+              <div class="row-form">
+                <label>Name <input id="skillName" required></label>
+                <label class="grow">Description <input id="skillDescription" required></label>
+              </div>
+              <label>Instructions <textarea id="skillInstructions" rows="10" class="mono" required></textarea></label>
+              <div class="row-form">
+                <label class="grow">Ask for a change
+                  <input id="skillChange" placeholder="Make it shorter and add a checklist">
+                </label>
+                <button type="button" id="skillRefine">Change it</button>
+                <button class="primary">Save</button>
+                <button type="button" id="skillDiscard">Discard</button>
+              </div>
+            </form>
+          </div>
+          <div class="card">
+            <div class="server-head">
+              <h2>Your skills</h2>
+              <span class="spacer"></span>
+              <button type="button" id="skillImport">Load from file</button>
+              <input type="file" id="skillFile" accept=".md,.zip,text/markdown" multiple hidden>
+              <a class="button" href="/api/skills/export" download>Download all</a>
+            </div>
+            <div id="skillList" class="list"></div>
+          </div>
+        </section>
       </div>
 
       <aside class="params hidden" id="params">
@@ -89,85 +147,6 @@
         </label>
         <button type="button" class="link" id="resetParams">Reset to defaults</button>
       </aside>
-    </section>
-
-    <section id="view-tasks" class="view page hidden">
-      <div class="card">
-        <h2>Start a long task</h2>
-        <p class="muted">The model works on its own in the background and keeps going when this page is closed. It keeps a plan and notes, and every step is saved, so a stopped task can continue later.</p>
-        <form class="stack" id="taskForm">
-          <label>What should it do?
-            <textarea id="taskGoal" rows="3" required placeholder="Check every product in the shop and write a price summary"></textarea>
-          </label>
-          <div class="row-form">
-            <label>Step limit
-              <input type="number" id="taskSteps" value="50" min="1" max="1000">
-            </label>
-            <button class="primary">Start</button>
-          </div>
-        </form>
-      </div>
-      <div class="columns tasks">
-        <div class="card"><h2>Tasks</h2><div id="taskList" class="list"></div></div>
-        <div class="card hidden" id="taskDetail">
-          <div class="server-head">
-            <h3 id="taskTitle"></h3>
-            <span class="badge" id="taskStatus"></span>
-            <span class="spacer"></span>
-            <button type="button" class="danger hidden" id="taskCancel">Stop</button>
-            <button type="button" class="hidden" id="taskResume">Continue</button>
-            <button type="button" class="danger" id="taskDelete">Delete</button>
-          </div>
-          <p class="muted" id="taskMeta"></p>
-          <p class="error hidden" id="taskError"></p>
-          <div id="taskResult" class="md hidden"></div>
-          <div id="taskPlan"></div>
-          <div id="taskNotes"></div>
-          <h3>Activity</h3>
-          <div id="taskLog" class="task-log"></div>
-        </div>
-      </div>
-    </section>
-
-    <section id="view-skills" class="view page hidden">
-      <div class="card">
-        <h2>Create a skill</h2>
-        <p class="muted">Describe what you want. The model writes a skill, you adjust it, and it is followed in chats and tasks while it is on.</p>
-        <form class="stack" id="skillDraftForm">
-          <label>Describe the skill
-            <textarea id="skillIdea" rows="3" required placeholder="When I ask for a weekly report, use wins, risks and next steps, under 150 words"></textarea>
-          </label>
-          <div><button class="primary" id="skillDraft">Write with the model</button></div>
-        </form>
-      </div>
-      <div class="card hidden" id="skillEditor">
-        <h2>Review</h2>
-        <form class="stack" id="skillForm">
-          <div class="row-form">
-            <label>Name <input id="skillName" required></label>
-            <label class="grow">Description <input id="skillDescription" required></label>
-          </div>
-          <label>Instructions <textarea id="skillInstructions" rows="10" class="mono" required></textarea></label>
-          <div class="row-form">
-            <label class="grow">Ask for a change
-              <input id="skillChange" placeholder="Make it shorter and add a checklist">
-            </label>
-            <button type="button" id="skillRefine">Change it</button>
-            <button class="primary">Save</button>
-            <button type="button" id="skillDiscard">Discard</button>
-          </div>
-        </form>
-      </div>
-      <div class="card">
-        <div class="server-head">
-          <h2>Your skills</h2>
-          <span class="spacer"></span>
-          <button type="button" id="skillImport">Load from file</button>
-          <input type="file" id="skillFile" accept=".md,.zip,text/markdown" multiple hidden>
-          <a class="button" href="/api/skills/export" download>Download all</a>
-        </div>
-        <div id="skillList" class="list"></div>
-      </div>
     </section>
 
     <section id="view-models" class="view page hidden">

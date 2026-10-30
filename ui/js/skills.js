@@ -55,14 +55,14 @@ function skillRow(skill) {
   );
 }
 
-async function refresh() {
+export async function refresh() {
   const skills = await api.get("/api/skills").catch(() => null);
   if (!skills) return;
   const list = $("skillList");
   list.replaceChildren(...skills.map(skillRow));
   if (!skills.length) list.append(el("p", { class: "muted", textContent: "No skills yet. Create one above, or load a file you saved earlier." }));
   const enabled = skills.filter((s) => s.enabled).length;
-  $("skillCount").textContent = enabled ? `${enabled} skill${enabled > 1 ? "s" : ""}` : "";
+  $("skillCount").textContent = enabled ? `(${enabled})` : "";
 }
 
 async function importFile(file) {
@@ -74,12 +74,6 @@ async function importFile(file) {
 }
 
 export function initSkills() {
-  $("skillDraftForm").addEventListener("submit", (event) => {
-    event.preventDefault();
-    withBusy($("skillDraft"), "Writing...", async () => {
-      openEditor(await api.post("/api/skills/draft", { description: $("skillIdea").value }));
-    });
-  });
   $("skillRefine").addEventListener("click", () => {
     const change = $("skillChange").value.trim();
     if (!change) return;
@@ -93,7 +87,6 @@ export function initSkills() {
       const saved = await api.post("/api/skills", editing());
       toast(`Saved ${saved.name}`);
       $("skillEditor").classList.add("hidden");
-      $("skillIdea").value = "";
       refresh();
     } catch (err) {
       showError(err);

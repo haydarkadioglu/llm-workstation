@@ -130,11 +130,19 @@ class SkillStore:
                 archive.writestr(f"{skill.name}.md", skill.to_markdown())
         return buffer.getvalue()
 
-    def prompt(self, max_chars: int) -> str:
-        """System prompt section for enabled skills, trimmed to fit the context."""
+    def _full_prompt(self) -> str:
         enabled = self._enabled()
         parts = [f"## Skill: {s.name}\n{s.instructions}" for s in self.all() if s.name in enabled]
         if not parts:
             return ""
-        text = "# Skills\nFollow these instructions whenever they apply.\n\n" + "\n\n".join(parts)
-        return text[:max_chars]
+        return "# Skills\nFollow these instructions whenever they apply.\n\n" + "\n\n".join(parts)
+
+    def needs_lookup(self, max_chars: int) -> bool:
+        return len(self._full_prompt()) > max_chars
+
+    def prompt(self, max_chars: int) -> str:
+        """Enabled skills in full, or only their list when they would crowd the context."""
+        text = self._full_prompt()
+        if len(text) <= max_chars:
+            return text
+        return "When a skill you know applies, call use_skill to read it first."

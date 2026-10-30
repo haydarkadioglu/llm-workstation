@@ -8,6 +8,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from mcp.server.transport_security import TransportSecuritySettings
 
+from .agent.approvals import Approvals
+from .agent.chat_tools import APPROVAL_TOOLS, ChatTools
 from .api import chat, drive, media, mcp, models, openai, system
 from .api import skills as skills_api
 from .api import tasks as tasks_api
@@ -65,6 +67,8 @@ def create_app(settings: Settings, registry: McpRegistry = None) -> FastAPI:
     app.state.registry = registry
     app.state.skills = skills
     app.state.tasks = tasks
+    app.state.chat_tools = ChatTools(manager, registry, skills, tasks)
+    app.state.approvals = Approvals(APPROVAL_TOOLS)
     app.state.transfers = TransferManager()
     app.state.auto_backup = auto_backup
     app.add_middleware(

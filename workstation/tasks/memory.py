@@ -4,7 +4,7 @@ NOTES_KEPT = 30
 NOTE_LIMIT = 600
 
 
-def _function(name: str, description: str, properties: dict, required: List[str]) -> dict:
+def function_tool(name: str, description: str, properties: dict, required: List[str]) -> dict:
     return {
         "type": "function",
         "function": {
@@ -16,25 +16,25 @@ def _function(name: str, description: str, properties: dict, required: List[str]
 
 
 MEMORY_TOOLS = [
-    _function(
+    function_tool(
         "plan_set",
         "Write or replace the plan for this task as a list of short steps.",
         {"steps": {"type": "array", "items": {"type": "string"}, "description": "The steps, in order"}},
         ["steps"],
     ),
-    _function(
+    function_tool(
         "plan_check",
         "Mark a plan step as done.",
         {"step": {"type": "integer", "description": "Step number, starting at 1"}},
         ["step"],
     ),
-    _function(
+    function_tool(
         "save_note",
         "Save a fact or result you will need later. Older tool results get forgotten, notes do not.",
         {"note": {"type": "string", "description": "What to remember"}},
         ["note"],
     ),
-    _function(
+    function_tool(
         "finish_task",
         "Finish the task once everything is done, giving the final result.",
         {"summary": {"type": "string", "description": "The final result for the user"}},
