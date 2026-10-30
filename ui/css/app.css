@@ -134,6 +134,9 @@ nav a.active { background: var(--surface-2); color: var(--text); font-weight: 60
 .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
 .chips button { padding: 3px 9px; font-size: 13px; }
 .section-gap { margin-top: 14px; }
+.save-target { max-width: 240px; margin-top: 10px; }
+.folder-link { background: none; border: none; padding: 0; color: var(--accent); text-align: left; white-space: normal; overflow-wrap: anywhere; }
+#view-drive .toggle { display: flex; margin-top: 6px; }
 .toggle { display: inline-flex; align-items: center; gap: 6px; color: var(--text); font-size: 14px; cursor: pointer; }
 
 .list-item {

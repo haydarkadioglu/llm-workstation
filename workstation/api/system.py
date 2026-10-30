@@ -10,6 +10,7 @@ router = APIRouter()
 def telemetry(request: Request):
     return {
         **request.app.state.manager.snapshot(),
+        "transfer": request.app.state.transfers.job,
         "cloudflare_url": get_cloudflare_url(),
         "system": get_system_telemetry(),
     }

@@ -1,15 +1,5 @@
 import { $, api, el, showError, store, toast } from "./util.js";
 
-async function refreshDrive() {
-  const drive = await api.get("/api/drive/status").catch(() => null);
-  if (!drive) return;
-  $("driveMode").checked = drive.drive_mode;
-  $("driveMode").disabled = !drive.mounted;
-  $("driveStatus").textContent = drive.mounted
-    ? `Mounted. ${drive.cached_models.length} models stored in Drive.`
-    : "Not mounted. In Colab, run drive.mount('/content/drive') before starting the workstation.";
-}
-
 export function renderSystem(telemetry) {
   const system = telemetry.system;
   const rows = [
@@ -60,9 +50,4 @@ export function initSettings() {
     refreshToken();
   });
   refreshToken();
-  $("driveMode").addEventListener("change", async (event) => {
-    await api.post("/api/drive/mode", { enabled: event.target.checked }).catch(showError);
-    refreshDrive();
-  });
-  refreshDrive();
 }

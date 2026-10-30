@@ -132,6 +132,26 @@ description: Writes a weekly report.
 
 Use **Download** for one skill or **Download all** for a zip, and **Load from file** on any later run to bring back `.md` or `.zip` files. A skill only gives the model instructions, it does not run code. Every enabled skill takes up context, so switch off the ones you are not using.
 
+## Google Drive
+
+Drive is optional. Colab wipes its disk when the runtime ends, so use it if you want models, chats and skills to outlive a session.
+
+Mount it in a notebook cell before starting the app. Google only allows this from a notebook, so the app cannot do it for you:
+
+```python
+from google.colab import drive
+drive.mount('/content/drive')
+```
+
+Then, in the **Drive** tab:
+
+- **Save to Drive** keeps a copy of a downloaded model. **Save downloads to** sends new downloads straight there.
+- **Load** on a Drive model copies it to this machine first, because Drive is slow to read. **Load from Drive** on a GGUF file uses no local disk, but runs slower to start.
+- **Find a GGUF file** browses your Drive for `.gguf` files. It cannot leave My Drive.
+- **Back up** saves skills, tasks, chats, MCP servers and model settings, by hand or every few minutes. A fresh runtime offers to restore them.
+
+Backups include MCP headers, which can hold passwords. Your Hugging Face token is left out unless you include it for one backup, and automatic backups never include it.
+
 ## Using this workstation from elsewhere
 
 **OpenAI API**: `POST /v1/chat/completions` and `GET /v1/models`, with streaming and `tools`. Tool calls are returned to the client, as with OpenAI.

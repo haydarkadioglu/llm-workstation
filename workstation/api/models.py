@@ -1,14 +1,14 @@
 import threading
 from typing import Optional
 
-from fastapi import APIRouter, Body, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request
 from huggingface_hub import HfApi
 from huggingface_hub.errors import HfHubHTTPError
 from pydantic import BaseModel
 
 from .. import secrets
 from ..engine.manager import saved_model_settings
-from ..hub import cache, drive
+from ..hub import cache
 from ..hub.source import parse_model_source
 
 router = APIRouter()
@@ -26,8 +26,9 @@ class TokenPayload(BaseModel):
     token: str
 
 
-class DriveModePayload(BaseModel):
-    enabled: bool
+class DeletePayload(BaseModel):
+    model_id: str
+    location: Optional[str] = None
 
 
 @router.get("/api/hf/token")
@@ -112,15 +113,15 @@ def cached_models():
 
 
 @router.post("/api/models/cached/delete")
-def delete_cached_model(request: Request, model_id: str = Body(..., embed=True)):
-    if request.app.state.manager.model_id == model_id:
+def delete_cached_model(payload: DeletePayload, request: Request):
+    if request.app.state.manager.model_id == payload.model_id:
         raise HTTPException(status_code=409, detail="Unload this model before deleting it.")
     try:
-        found = cache.delete_cached(model_id)
+        found = cache.delete_cached(payload.model_id, payload.location)
     except OSError as err:
         raise HTTPException(status_code=500, detail=str(err))
     if not found:
-        raise HTTPException(status_code=404, detail=f"'{model_id}' is not in the cache.")
+        raise HTTPException(status_code=404, detail=f"'{payload.model_id}' is not in the cache.")
     return {"status": "ok"}
 
 
@@ -140,14 +141,3 @@ def hf_repo_files(repo_id: str):
         raise HTTPException(status_code=502, detail=str(err))
 
 
-@router.get("/api/drive/status")
-def drive_status():
-    return drive.drive_status()
-
-
-@router.post("/api/drive/mode")
-def drive_mode(payload: DriveModePayload):
-    result = drive.set_drive_mode(payload.enabled)
-    if not result["ok"]:
-        raise HTTPException(status_code=400, detail=result["error"])
-    return result

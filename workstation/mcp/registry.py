@@ -28,8 +28,11 @@ class McpRegistry:
         self.lock = threading.Lock()
 
     def start(self) -> None:
+        """Connect saved servers. Safe to call again after restoring a backup."""
         for raw in read_json(self.path, []):
             config = ServerConfig(**raw)
+            if config.id in self.configs:
+                continue
             self.configs[config.id] = config
             if config.enabled:
                 self.connections[config.id] = self.runtime.connect(config)

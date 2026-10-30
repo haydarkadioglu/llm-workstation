@@ -47,19 +47,41 @@ function renderStats(t) {
 }
 
 function renderLoadControl(t) {
-  const downloading = t.load_state === "downloading";
-  const paused = t.load_state === "paused";
-  $("loadControl").classList.toggle("hidden", !downloading && !paused);
+  const copying = t.transfer?.status === "running";
+  const downloading = !copying && t.load_state === "downloading";
+  const paused = !copying && t.load_state === "paused";
+  $("loadControl").classList.toggle("hidden", !downloading && !paused && !copying);
   $("loadPause").classList.toggle("hidden", !downloading);
   $("loadResume").classList.toggle("hidden", !paused);
-  if (downloading || paused) {
+  renderTransfer(t.transfer);
+  if (copying) {
+    const speed = t.transfer.speed ? ` (${t.transfer.speed})` : "";
+    $("loadControlText").textContent = `Copying ${t.transfer.label}: ${t.transfer.pct}%${speed}`;
+  } else if (downloading || paused) {
     const note = t.loading_note ? ` ${t.loading_note}` : "";
     $("loadControlText").textContent = `${displayName(t.loading_model)}: ${t.model_status}.${note}`;
   }
 }
 
+let lastTransferStatus = null;
+
+function renderTransfer(job) {
+  if (job && job.status !== lastTransferStatus) {
+    if (lastTransferStatus === "running" && job.status === "failed") toast(`Copy failed: ${job.error}`, "error");
+    else if (lastTransferStatus === "running" && job.status === "done") {
+      toast(`Copied ${job.label}`);
+      refreshCached();
+    }
+    lastTransferStatus = job.status;
+  }
+}
+
 function controlLoad(action) {
-  return () => api.post(`/api/model/load/${action}`).catch(showError);
+  return () => {
+    const copying = telemetry?.transfer?.status === "running";
+    const url = copying && action === "cancel" ? "/api/drive/transfer/cancel" : `/api/model/load/${action}`;
+    return api.post(url).catch(showError);
+  };
 }
 
 function renderStatus(t) {
@@ -130,7 +152,22 @@ function listItem(text, ...extras) {
   return el("div", { class: "list-item" }, el("span", { class: "name", textContent: text }), ...extras);
 }
 
-async function refreshCached() {
+export async function driveLoad(model, kind = "text") {
+  try {
+    await api.post("/api/drive/transfer", { model_id: model.id, load: true, kind });
+    toast(`Copying ${model.name || model.id} from Drive, then loading`);
+  } catch (err) {
+    showError(err);
+  }
+}
+
+export async function deleteCached(model) {
+  if (!confirm(`Delete ${model.name || model.id}?`)) return;
+  await api.post("/api/models/cached/delete", { model_id: model.id, location: model.location }).catch(showError);
+  refreshCached();
+}
+
+export async function refreshCached() {
   const models = await api.get("/api/models/cached").catch(() => []);
   const chat = models.filter((model) => model.kind !== "diffusion");
   const media = models.filter((model) => model.kind === "diffusion");
@@ -147,17 +184,12 @@ function fillCached(list, models, type) {
         model.name || model.id,
         el("span", { class: "badge", textContent: model.location }),
         el("span", { class: "muted", textContent: `${model.size_gb} GB` }),
-        el("button", { type: "button", textContent: "Load", onclick: () => loadModel(model.id, type) }),
         el("button", {
           type: "button",
-          class: "danger",
-          textContent: "Delete",
-          onclick: async () => {
-            if (!confirm(`Delete ${model.id}?`)) return;
-            await api.post("/api/models/cached/delete", { model_id: model.id }).catch(showError);
-            refreshCached();
-          },
+          textContent: "Load",
+          onclick: () => (model.location === "drive" ? driveLoad(model, type) : loadModel(model.id, type)),
         }),
+        el("button", { type: "button", class: "danger", textContent: "Delete", onclick: () => deleteCached(model) }),
       ),
     );
   }
@@ -182,6 +214,17 @@ function buildMediaLoader(card) {
     el("h2", { textContent: kind === "image" ? "Load an image model" : "Load a video model" }),
     el("p", { class: "muted model-hint", "data-kind": kind }),
     form,
+    el(
+      "label",
+      { class: "save-target hidden" },
+      "Save downloads to",
+      el(
+        "select",
+        {},
+        el("option", { value: "local", textContent: "This machine" }),
+        el("option", { value: "drive", textContent: "Google Drive" }),
+      ),
+    ),
     el(
       "div",
       { class: "chips" },

@@ -1,4 +1,5 @@
 import { initChat } from "./chat.js";
+import { initDrive } from "./drive.js";
 import { initMcp, renderEndpoints } from "./mcp.js";
 import { initMedia } from "./media.js";
 import { initModels, onTelemetry } from "./models.js";
@@ -27,6 +28,7 @@ onTelemetry(renderSystem);
 initModels();
 initMcp();
 initMedia();
+initDrive();
 initSettings();
 initTasks();
 initSkills();

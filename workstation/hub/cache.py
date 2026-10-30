@@ -184,7 +184,8 @@ def _delete_url_model(path: Path) -> None:
         (path.parent / shard).unlink(missing_ok=True)
 
 
-def delete_cached(model_id: str) -> bool:
+def delete_cached(model_id: str, location: Optional[str] = None) -> bool:
+    """Delete a model. With a copy in both places, `location` says which one goes."""
     known = {model["id"] for model in _url_models()}
     if model_id in known:
         _delete_url_model(Path(model_id))
@@ -195,6 +196,8 @@ def delete_cached(model_id: str) -> bool:
     except ValueError:
         return False
     for cache in _cache_dirs():
+        if location and location != ("drive" if cache else "local"):
+            continue
         for repo in _scan(cache):
             if repo.repo_id != repo_id:
                 continue

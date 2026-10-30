@@ -37,8 +37,12 @@ class TaskManager:
         self.lock = threading.Lock()
         self.queue: queue.Queue = queue.Queue()
         self.thread = None
+        self.on_task_end = None
 
-    def start(self) -> None:
+    def any_active(self) -> bool:
+        return any(t["status"] in ACTIVE for t in self.tasks.values())
+
+    def load_saved(self) -> None:
         for path in self.root.glob("*.json"):
             task = read_json(path, None)
             if not task:
@@ -47,7 +51,10 @@ class TaskManager:
                 task["status"] = "interrupted"
                 self._save(task)
             self.tasks[task["id"]] = task
-        self.thread = threading.Thread(target=self._work, daemon=True, name="task-runner")
+
+    def start(self) -> None:
+        self.load_saved()
+        self.thread =threading.Thread(target=self._work, daemon=True, name="task-runner")
         self.thread.start()
 
     def stop(self) -> None:
@@ -242,6 +249,8 @@ class TaskManager:
         self.cancels.pop(task["id"], None)
         self._log(task, "status", text=f"Ended: {task['status']}")
         self._save(task)
+        if self.on_task_end:
+            self.on_task_end()
 
     def _skills_prompt(self) -> str:
         length = self.manager.backend.capabilities.context_length if self.manager.backend else 4096
