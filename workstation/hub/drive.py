@@ -1,8 +1,12 @@
 import os
+from pathlib import Path
 from typing import List, Optional
+
+from ..config import DATA_DIR
 
 DRIVE_ROOT = "/content/drive/MyDrive"
 DRIVE_LLM_DIR = "/content/drive/MyDrive/LLM-Workstation/models"
+DRIVE_GGUF_DIR = "/content/drive/MyDrive/LLM-Workstation/gguf"
 
 _use_drive = False
 
@@ -14,6 +18,11 @@ def is_drive_mounted() -> bool:
 def cache_dir() -> Optional[str]:
     """Cache directory for downloads, None meaning the default HF cache."""
     return DRIVE_LLM_DIR if _use_drive and is_drive_mounted() else None
+
+
+def url_models_dir() -> Path:
+    """Where GGUF files fetched from plain links are kept."""
+    return Path(DRIVE_GGUF_DIR) if cache_dir() else DATA_DIR / "models"
 
 
 def set_drive_mode(enabled: bool) -> dict:

@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from .. import secrets
 from ..engine.manager import saved_model_settings
 from ..hub import cache, drive
+from ..hub.source import parse_model_source
 
 router = APIRouter()
 
@@ -58,7 +59,13 @@ def delete_hf_token():
 
 @router.post("/api/model/load")
 def load_model(payload: LoadPayload, request: Request):
-    options = {k: v for k, v in (("n_ctx", payload.n_ctx), ("n_gpu_layers", payload.n_gpu_layers)) if v is not None}
+    try:
+        source = parse_model_source(payload.model_id)
+    except ValueError as err:
+        raise HTTPException(status_code=400, detail=str(err))
+    if source.needs_file_choice and payload.model_type == "text":
+        return {"choose_file": source.model_id}
+    options ={k: v for k, v in (("n_ctx", payload.n_ctx), ("n_gpu_layers", payload.n_gpu_layers)) if v is not None}
     threading.Thread(
         target=request.app.state.manager.load,
         args=(payload.model_id, payload.hf_token, payload.model_type, options),

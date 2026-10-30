@@ -80,6 +80,9 @@ def run_download(kind: str, model_id: str, token, state, worker=None) -> dict:
                 return message["result"]
             if "error" in message:
                 raise RuntimeError(message["error"])
+            if "note" in message:
+                state.loading_note = message["note"]
+                continue
             state.loading_progress = message["pct"]
             state.loading_speed = message["speed"]
             speed = f" ({message['speed']})" if message["speed"] else ""

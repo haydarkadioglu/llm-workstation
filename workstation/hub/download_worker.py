@@ -36,12 +36,18 @@ def _prefetch(request: dict) -> None:
     kind, model_id, token = request["kind"], request["model_id"], request.get("token")
     if os.environ.get(FAST_DOWNLOAD):
         return
-    repo_id, files = cache.gguf_files(model_id) if kind == "gguf" else (model_id, cache.repo_files(model_id, token))
-    prefetch(repo_id, files, token, drive.cache_dir(), _report)
+    if kind == "gguf":
+        repo_id, revision, files = cache.gguf_files(model_id)
+    else:
+        repo_id, revision, files = model_id, None, cache.repo_files(model_id, token)
+    prefetch(repo_id, files, token, drive.cache_dir(), _report, revision)
 
 
 def _fetch(request: dict) -> dict:
     kind, model_id, token = request["kind"], request["model_id"], request.get("token")
+    if kind == "url":
+        path, size_mb = cache.download_url(model_id, _report, lambda text: _send(note=text))
+        return {"path": path, "size_mb": size_mb}
     if kind == "gguf":
         _prefetch(request)
         path, size_mb = cache.download_gguf(model_id, token)

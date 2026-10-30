@@ -53,8 +53,8 @@ function renderLoadControl(t) {
   $("loadPause").classList.toggle("hidden", !downloading);
   $("loadResume").classList.toggle("hidden", !paused);
   if (downloading || paused) {
-    const name = (t.loading_model || "").split(/[\\/]/).pop();
-    $("loadControlText").textContent = `${name}: ${t.model_status}`;
+    const note = t.loading_note ? ` ${t.loading_note}` : "";
+    $("loadControlText").textContent = `${displayName(t.loading_model)}: ${t.model_status}.${note}`;
   }
 }
 
@@ -67,7 +67,7 @@ function renderStatus(t) {
   const failed = t.model_status === "Error loading model";
   renderLoadControl(t);
   $("statusDot").className = `dot ${failed ? "bad" : loading ? "busy" : t.current_model ? "ok" : ""}`;
-  const name = t.current_model ? t.current_model.split(/[\\/]/).pop() : "";
+  const name = displayName(t.current_model);
   $("statusText").textContent = loading || failed || !name ? t.model_status : name;
   $("status").title = t.current_model
     ? `${t.current_model}\n${t.supports_tools ? "Native tool calling" : "Tools use the prompt fallback"}`
@@ -105,11 +105,22 @@ async function poll() {
   setTimeout(poll, 2000);
 }
 
+function displayName(modelId) {
+  return (modelId || "").split("?")[0].split(/[\\/]/).pop();
+}
+
 export async function loadModel(modelId, type = "text", options = {}) {
   const token = store.get("hfToken", "");
   try {
-    await api.post("/api/model/load", { model_id: modelId, model_type: type, hf_token: token || null, ...options });
-    toast(`Loading ${modelId.split("/").pop()}`);
+    const body = { model_id: modelId, model_type: type, hf_token: token || null, ...options };
+    const result = await api.post("/api/model/load", body);
+    if (result.choose_file) {
+      location.hash = "models";
+      toast("Pick one of this repo's files");
+      showFiles(result.choose_file);
+      return;
+    }
+    toast(`Loading ${displayName(modelId)}`);
   } catch (err) {
     showError(err);
   }
@@ -133,7 +144,7 @@ function fillCached(list, models, type) {
   for (const model of models) {
     list.append(
       listItem(
-        model.id,
+        model.name || model.id,
         el("span", { class: "badge", textContent: model.location }),
         el("span", { class: "muted", textContent: `${model.size_gb} GB` }),
         el("button", { type: "button", textContent: "Load", onclick: () => loadModel(model.id, type) }),
@@ -164,7 +175,7 @@ function buildMediaLoader(card) {
         loadModel(input.value.trim(), kind);
       },
     },
-    el("label", { class: "grow" }, "Hugging Face model", input),
+    el("label", { class: "grow" }, "Hugging Face model or link", input),
     el("button", { class: "primary", textContent: "Load" }),
   );
   card.append(

@@ -24,6 +24,18 @@ The default `llama-cpp-python` build runs on the CPU. For GPU layers, rebuild it
 CMAKE_ARGS="-DGGML_CUDA=on" pip install --force-reinstall --no-cache-dir llama-cpp-python
 ```
 
+## Gated models and tokens
+
+Most models need no token. For gated or private ones, save a Hugging Face token in **Settings**. It is checked first, then stored in `secrets.json` in plain text, and the app never shows it again. Anyone with the app's URL can download with it, so use a read-only token. Without a saved token, `HF_TOKEN` from the environment is used.
+
+## Loading from a link
+
+The model box takes more than names, so you can paste a link:
+
+- A Hugging Face `.gguf` file page or download link. Subfolders, split files and links pinned to a commit work.
+- A Hugging Face model page. For a GGUF repo you then pick a file from the list.
+- A direct `.gguf` link from any other site. It is kept in `~/.llm-workstation/models` and listed under **Downloaded**. Your Hugging Face token is never sent there.
+
 ## Downloads
 
 While a model downloads, a bar under the menu offers **Pause** and **Cancel**, on every tab.

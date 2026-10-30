@@ -18,6 +18,13 @@ def split_gguf_id(model_id: str) -> Tuple[str, str]:
     return "/".join(parts[:2]), "/".join(parts[2:])
 
 
+def parse_gguf_id(model_id: str) -> Tuple[str, Optional[str], str]:
+    """'org/repo@rev/file.gguf' -> ('org/repo', 'rev', 'file.gguf')."""
+    repo, filename = split_gguf_id(model_id)
+    repo, _, revision = repo.partition("@")
+    return repo, revision or None, filename
+
+
 def shard_names(filename: str) -> List[str]:
     match = SHARD_RE.search(filename)
     if not match:

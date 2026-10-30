@@ -1,15 +1,22 @@
+import hashlib
+import re
 import shutil
 from pathlib import Path
 from typing import List, Optional
+from urllib.parse import unquote
 
 from huggingface_hub import HfApi, constants, hf_hub_download, scan_cache_dir, snapshot_download
 from huggingface_hub.utils import filter_repo_objects
 
-from ..engine.gguf import shard_names, split_gguf_id
+from ..config import DATA_DIR
+from ..engine.gguf import parse_gguf_id, shard_names, split_gguf_id
 from ..secrets import resolve_token
 from . import drive
+from .resumable import PARTIAL_SUFFIX, fetch_all, remote_size
+from .source import is_url
 
 GB = 1024 ** 3
+GGUF_MAGIC = b"GGUF"
 WEIGHT_PATTERNS = ("*.safetensors", "*.bin")
 CONFIG_PATTERNS = ["*.json", "*.model", "*.txt", "*.py", "*.jinja", "*.tiktoken"]
 
@@ -30,8 +37,55 @@ def _scan(cache: Optional[str]):
 
 
 def gguf_files(model_id: str) -> tuple:
-    repo_id, filename = split_gguf_id(model_id)
-    return repo_id, shard_names(filename)
+    repo_id, revision, filename = parse_gguf_id(model_id)
+    return repo_id, revision, shard_names(filename)
+
+
+def _url_file_prefix(url: str) -> str:
+    return hashlib.sha1(url.split("?")[0].encode("utf-8")).hexdigest()[:8]
+
+
+def _url_targets(url: str) -> List[tuple]:
+    """(url, local path) for a linked GGUF and any other parts of it."""
+    base, separator, query = url.partition("?")
+    prefix = _url_file_prefix(url)
+    targets = []
+    for shard in shard_names(base):
+        name = re.sub(r"[^\w.\-]", "_", unquote(shard.rsplit("/", 1)[-1]))
+        targets.append((shard + separator + query, drive.url_models_dir() / f"{prefix}-{name}"))
+    return targets
+
+
+def download_url(url: str, report, note) -> tuple:
+    """Fetch a GGUF from any site. Returns (first file path, total MB)."""
+    drive.url_models_dir().mkdir(parents=True, exist_ok=True)
+    files = [(link, dest, remote_size(link)) for link, dest in _url_targets(url)]
+    if not all(size for _, _, size in files):
+        note("This site does not report the file size, so pausing will start over.")
+    fetch_all(files, None, report)
+
+    for _, dest, _ in files:
+        with open(dest, "rb") as handle:
+            magic = handle.read(4)
+        if magic != GGUF_MAGIC:
+            dest.unlink()
+            raise ValueError("That link did not return a GGUF file. It may need a login, or be a web page.")
+    return str(files[0][1]), sum(dest.stat().st_size for _, dest, _ in files) / (1024 ** 2)
+
+
+def _url_models() -> List[dict]:
+    models = []
+    for folder, location in ((DATA_DIR / "models", "local"), (Path(drive.DRIVE_GGUF_DIR), "drive")):
+        if not folder.is_dir():
+            continue
+        for path in sorted(folder.glob("*.gguf")):
+            shards = shard_names(path.name)
+            if len(shards) > 1 and path.name != shards[0]:
+                continue
+            size = sum((folder / shard).stat().st_size for shard in shards if (folder / shard).exists())
+            name = re.sub(r"^[0-9a-f]{8}-", "", path.name)
+            models.append({"id": str(path), "name": name, "size_gb": round(size / GB, 2), "kind": "gguf", "location": location})
+    return models
 
 
 def repo_files(repo_id: str, token: Optional[str]) -> List[str]:
@@ -42,10 +96,10 @@ def repo_files(repo_id: str, token: Optional[str]) -> List[str]:
 
 def download_gguf(model_id: str, token: Optional[str]) -> tuple:
     """Fetch a GGUF (all shards if split). Returns (first file path, total MB)."""
-    repo_id, filename = split_gguf_id(model_id)
+    repo_id, revision, names = gguf_files(model_id)
     paths = [
-        hf_hub_download(repo_id=repo_id, filename=name, cache_dir=drive.cache_dir(), token=token)
-        for name in shard_names(filename)
+        hf_hub_download(repo_id=repo_id, filename=name, revision=revision, cache_dir=drive.cache_dir(), token=token)
+        for name in names
     ]
     return paths[0], sum(Path(p).stat().st_size for p in paths) / (1024 ** 2)
 
@@ -87,7 +141,7 @@ def list_cached() -> List[dict]:
             if diffusion or any(f.file_name == "config.json" for f in files) or not ggufs:
                 kind = "diffusion" if diffusion else "repo"
                 models.append({"id": repo.repo_id, "size_gb": round(repo.size_on_disk / GB, 2), "kind": kind, "location": location})
-    return models
+    return models + _url_models()
 
 
 def _delete_gguf(repo, filename: str) -> None:
@@ -109,7 +163,11 @@ def _delete_gguf(repo, filename: str) -> None:
 
 def discard_partial(model_id: str) -> None:
     """Remove what a cancelled download left behind, keeping any finished files."""
-    repo_id = split_gguf_id(model_id)[0] if model_id.lower().endswith(".gguf") else model_id
+    if is_url(model_id):
+        for _, dest in _url_targets(model_id):
+            dest.with_name(dest.name + PARTIAL_SUFFIX).unlink(missing_ok=True)
+        return
+    repo_id = parse_gguf_id(model_id)[0] if model_id.lower().endswith(".gguf") else model_id
     folder = "models--" + repo_id.replace("/", "--")
     for cache in _cache_dirs():
         repo_path = Path(cache or constants.HF_HUB_CACHE) / folder
@@ -121,9 +179,21 @@ def discard_partial(model_id: str) -> None:
             shutil.rmtree(repo_path, ignore_errors=True)
 
 
+def _delete_url_model(path: Path) -> None:
+    for shard in shard_names(path.name):
+        (path.parent / shard).unlink(missing_ok=True)
+
+
 def delete_cached(model_id: str) -> bool:
+    known = {model["id"] for model in _url_models()}
+    if model_id in known:
+        _delete_url_model(Path(model_id))
+        return True
     is_gguf = model_id.lower().endswith(".gguf")
-    repo_id, filename = split_gguf_id(model_id) if is_gguf else (model_id, None)
+    try:
+        repo_id, filename = split_gguf_id(model_id) if is_gguf else (model_id, None)
+    except ValueError:
+        return False
     for cache in _cache_dirs():
         for repo in _scan(cache):
             if repo.repo_id != repo_id:

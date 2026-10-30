@@ -6,6 +6,7 @@ from typing import Iterator, List, Optional, Union
 from ..config import DATA_DIR, read_json, write_json
 from ..hub import cache
 from ..hub.download import DownloadStopped, run_download
+from ..hub.source import is_url, parse_model_source
 from ..secrets import friendly_error, resolve_token
 from ..telemetry import free_vram_mb
 from .base import ChatBackend, GenerationParams, Message, Usage
@@ -41,6 +42,7 @@ class ModelManager:
         self._active_cancel: Optional[threading.Event] = None
         self.load_state = "idle"  # idle | preparing | downloading | loading | paused
         self.loading_model: Optional[str] = None
+        self.loading_note = ""
         self.stop_request: Optional[str] = None
         self.paused_load: Optional[tuple] = None
 
@@ -77,6 +79,15 @@ class ModelManager:
             self.error_message = None
 
     def load(self, model_id: str, token: Optional[str] = None, kind: str = "text", options: Optional[dict] = None) -> bool:
+        try:
+            source = parse_model_source(model_id)
+            if kind in ("image", "video") and source.kind != "repo":
+                raise ValueError("GGUF files are chat models. Load this one in Chat models.")
+        except ValueError as err:
+            self.status = "Error loading model"
+            self.error_message = str(err)
+            return False
+        model_id = source.model_id
         options = {**saved_model_settings(model_id), **(options or {})}
         token = resolve_token(token)
         self.paused_load = None
@@ -89,6 +100,7 @@ class ModelManager:
             self.status = f"Preparing '{model_id}'..."
             self.loading_progress = 0
             self.loading_speed = ""
+            self.loading_note = ""
             self.error_message = None
             try:
                 if kind in ("image", "video"):
@@ -177,20 +189,21 @@ class ModelManager:
         n_ctx = options.get("n_ctx")
         n_gpu_layers = options.get("n_gpu_layers", -1)
         lower = model_id.lower()
+        linked = is_url(model_id)
 
-        if lower.endswith(".gguf"):
+        if linked or lower.endswith(".gguf"):
             from .gguf import GgufBackend
 
             if os.path.isfile(model_id):
                 path, size_mb = model_id, os.path.getsize(model_id) / (1024 ** 2)
             else:
-                result = self._download("gguf", model_id, token)
+                result = self._download("url" if linked else "gguf", model_id, token)
                 path, size_mb = result["path"], result["size_mb"]
             self.status = "Loading GGUF into memory..."
             return GgufBackend(path, n_ctx, n_gpu_layers, free_vram_mb(), size_mb)
 
         if "-gguf" in lower:
-            raise ValueError("GGUF repos hold several files. Pick one: org/repo/model-Q4_K_M.gguf")
+            raise ValueError("GGUF repos hold several files. Link to one, or use org/repo/model-Q4_K_M.gguf")
 
         from .hf import HfBackend
 
@@ -250,6 +263,7 @@ class ModelManager:
             "model_kind": self.pipeline_kind or ("text" if self.backend else None),
             "load_state": self.load_state,
             "loading_model": self.loading_model,
+            "loading_note": self.loading_note,
             "loading_progress": self.loading_progress,
             "loading_speed": self.loading_speed,
             "error_message": self.error_message,
