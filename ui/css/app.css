@@ -119,6 +119,7 @@ nav a.active { background: var(--surface-2); color: var(--text); }
 .columns { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 10px; }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
 .chips button { padding: 3px 9px; font-size: 13px; }
+.section-gap { margin-top: 14px; }
 .toggle { display: inline-flex; align-items: center; gap: 6px; color: var(--text); font-size: 14px; cursor: pointer; }
 
 .list-item {

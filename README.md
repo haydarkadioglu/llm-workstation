@@ -40,7 +40,8 @@ Settings, saved MCP servers and chats live in `~/.llm-workstation`. Set `LLM_WOR
 ## Models
 
 - **GGUF** models run through llama.cpp and **Transformers** models load in 4-bit on a GPU. Each uses the chat template shipped with the model.
-- The context size is picked from the model and free VRAM. It can be set per model in the Models tab, along with GPU layers, and is remembered.
+- The context size is picked from the model and free VRAM. It can be set per model in the Chat models tab, along with GPU layers, and is remembered.
+- Chat models load in **Chat models**, image models in **Image** and video models in **Video**. One model runs at a time, so loading one replaces the current one.
 - When a conversation outgrows the context, the oldest turns are left out and the app says so.
 - Stop really stops generation on the server, and so does closing the page.
 - Split GGUF files download and load as one model.

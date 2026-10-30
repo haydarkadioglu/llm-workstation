@@ -5,8 +5,15 @@ const PRESETS = [
   ["Qwen 2.5 0.5B", "Qwen/Qwen2.5-0.5B-Instruct"],
   ["Qwen2 VL 2B (vision)", "Qwen/Qwen2-VL-2B-Instruct"],
   ["Qwen 2.5 1.5B GGUF", "Qwen/Qwen2.5-1.5B-Instruct-GGUF/qwen2.5-1.5b-instruct-q4_k_m.gguf"],
-  ["SD 1.5 (image)", "runwayml/stable-diffusion-v1-5", "image"],
 ];
+
+const MEDIA_PRESETS = {
+  image: [
+    ["Stable Diffusion 1.5", "runwayml/stable-diffusion-v1-5"],
+    ["Stable Diffusion 2.1", "stabilityai/stable-diffusion-2-1"],
+  ],
+  video: [["Text to Video 1.7B", "damo-vilab/text-to-video-ms-1.7b"]],
+};
 
 export let telemetry = null;
 const listeners = [];
@@ -55,8 +62,12 @@ function renderStatus(t) {
   $("loadError").textContent = t.error_message || "";
 
   for (const hint of document.querySelectorAll(".model-hint")) {
-    const ready = t.model_kind === hint.dataset.kind;
-    hint.textContent = ready ? `Using ${name}.` : `Load a ${hint.dataset.kind} model in the Models tab first.`;
+    hint.classList.toggle("error", failed);
+    if (failed) hint.textContent = t.error_message;
+    else if (loading) hint.textContent = t.model_status;
+    else if (t.model_kind === hint.dataset.kind) hint.textContent = `Loaded: ${name}`;
+    else if (name) hint.textContent = `Loaded now: ${name}. Loading here replaces it.`;
+    else hint.textContent = "Nothing loaded yet.";
   }
 }
 
@@ -93,7 +104,13 @@ function listItem(text, ...extras) {
 
 async function refreshCached() {
   const models = await api.get("/api/models/cached").catch(() => []);
-  const list = $("cached");
+  const chat = models.filter((model) => model.kind !== "diffusion");
+  const media = models.filter((model) => model.kind === "diffusion");
+  fillCached($("cached"), chat, "text");
+  for (const kind of Object.keys(MEDIA_PRESETS)) fillCached($(`cached-${kind}`), media, kind);
+}
+
+function fillCached(list, models, type) {
   list.replaceChildren();
   if (!models.length) list.append(el("p", { class: "muted", textContent: "Nothing downloaded yet." }));
   for (const model of models) {
@@ -102,7 +119,7 @@ async function refreshCached() {
         model.id,
         el("span", { class: "badge", textContent: model.location }),
         el("span", { class: "muted", textContent: `${model.size_gb} GB` }),
-        el("button", { type: "button", textContent: "Load", onclick: () => loadModel(model.id) }),
+        el("button", { type: "button", textContent: "Load", onclick: () => loadModel(model.id, type) }),
         el("button", {
           type: "button",
           class: "danger",
@@ -116,6 +133,37 @@ async function refreshCached() {
       ),
     );
   }
+}
+
+function buildMediaLoader(card) {
+  const kind = card.dataset.modelLoader;
+  const input = el("input", { required: true, placeholder: MEDIA_PRESETS[kind][0][1] });
+  const form = el(
+    "form",
+    {
+      class: "row-form",
+      onsubmit: (event) => {
+        event.preventDefault();
+        loadModel(input.value.trim(), kind);
+      },
+    },
+    el("label", { class: "grow" }, "Hugging Face model", input),
+    el("button", { class: "primary", textContent: "Load" }),
+  );
+  card.append(
+    el("h2", { textContent: kind === "image" ? "Load an image model" : "Load a video model" }),
+    el("p", { class: "muted model-hint", "data-kind": kind }),
+    form,
+    el(
+      "div",
+      { class: "chips" },
+      ...MEDIA_PRESETS[kind].map(([label, id]) =>
+        el("button", { type: "button", textContent: label, onclick: () => (input.value = id) }),
+      ),
+    ),
+    el("h3", { class: "section-gap", textContent: "Downloaded" }),
+    el("div", { class: "list", id: `cached-${kind}` }),
+  );
 }
 
 function fitBadge(size) {
@@ -181,14 +229,14 @@ async function fillSavedSettings() {
 }
 
 export function initModels() {
-  for (const [label, id, type = "text"] of PRESETS) {
+  document.querySelectorAll("[data-model-loader]").forEach(buildMediaLoader);
+  for (const [label, id] of PRESETS) {
     $("presets").append(
       el("button", {
         type: "button",
         textContent: label,
         onclick: () => {
           $("loadId").value = id;
-          $("loadType").value = type;
           fillSavedSettings();
         },
       }),
@@ -200,7 +248,7 @@ export function initModels() {
     const options = {};
     if ($("loadCtx").value) options.n_ctx = Number($("loadCtx").value);
     if ($("loadGpu").value) options.n_gpu_layers = Number($("loadGpu").value);
-    loadModel($("loadId").value.trim(), $("loadType").value, options);
+    loadModel($("loadId").value.trim(), "text", options);
   });
   $("unload").addEventListener("click", () => api.post("/api/model/unload").catch(showError));
   $("searchForm").addEventListener("submit", search);

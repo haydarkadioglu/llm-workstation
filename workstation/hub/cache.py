@@ -70,8 +70,10 @@ def list_cached() -> List[dict]:
                     continue
                 size = sum(ggufs[s].size_on_disk for s in shards if s in ggufs)
                 models.append({"id": f"{repo.repo_id}/{name}", "size_gb": round(size / GB, 2), "kind": "gguf", "location": location})
-            if any(f.file_name == "config.json" for f in files) or not ggufs:
-                models.append({"id": repo.repo_id, "size_gb": round(repo.size_on_disk / GB, 2), "kind": "repo", "location": location})
+            diffusion = any(f.file_name == "model_index.json" for f in files)
+            if diffusion or any(f.file_name == "config.json" for f in files) or not ggufs:
+                kind = "diffusion" if diffusion else "repo"
+                models.append({"id": repo.repo_id, "size_gb": round(repo.size_on_disk / GB, 2), "kind": kind, "location": location})
     return models
 
 

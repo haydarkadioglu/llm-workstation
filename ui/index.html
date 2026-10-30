@@ -17,7 +17,7 @@
       <a href="#chat">Chat</a>
       <a href="#tasks">Tasks</a>
       <a href="#skills">Skills</a>
-      <a href="#models">Models</a>
+      <a href="#models">Chat models</a>
       <a href="#mcp">MCP</a>
       <a href="#image">Image</a>
       <a href="#video">Video</a>
@@ -167,17 +167,11 @@
       <div class="grid stats" id="stats"></div>
 
       <div class="card">
-        <h2>Load a model</h2>
+        <h2>Load a chat model</h2>
+        <p class="muted">Text models for Chat, Tasks and Skills. Image and video models load in their own tabs. One model runs at a time, so loading a model replaces the current one.</p>
         <form class="row-form" id="loadForm">
           <label class="grow">Model
             <input id="loadId" placeholder="Qwen/Qwen2.5-1.5B-Instruct or org/repo/file.gguf" required>
-          </label>
-          <label>Type
-            <select id="loadType">
-              <option value="text">Chat</option>
-              <option value="image">Image</option>
-              <option value="video">Video</option>
-            </select>
           </label>
           <label>Context size
             <input type="number" id="loadCtx" placeholder="Auto" min="512" step="512">
@@ -272,9 +266,9 @@
     </section>
 
     <section id="view-image" class="view page hidden">
+      <div class="card" data-model-loader="image"></div>
       <div class="card">
         <h2>Generate an image</h2>
-        <p class="muted model-hint" data-kind="image"></p>
         <form class="stack" id="imageForm">
           <label>Prompt <textarea id="imagePrompt" rows="3" required></textarea></label>
           <label>Negative prompt <input id="imageNegative"></label>
@@ -291,9 +285,9 @@
     </section>
 
     <section id="view-video" class="view page hidden">
+      <div class="card" data-model-loader="video"></div>
       <div class="card">
         <h2>Generate a video</h2>
-        <p class="muted model-hint" data-kind="video"></p>
         <form class="stack" id="videoForm">
           <label>Prompt <textarea id="videoPrompt" rows="3" required></textarea></label>
           <label>Negative prompt <input id="videoNegative"></label>

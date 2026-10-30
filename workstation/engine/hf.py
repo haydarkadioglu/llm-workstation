@@ -55,7 +55,7 @@ def _load_weights(path: str, config: AutoConfig):
         return AutoModelForCausalLM.from_pretrained(path, quantization_config=quant, device_map="auto", **common)
     except Exception as err:
         print(f"[HF] 4-bit load failed ({err}), falling back to float16.")
-        return AutoModelForCausalLM.from_pretrained(path, device_map="auto", torch_dtype=torch.float16, **common)
+        return AutoModelForCausalLM.from_pretrained(path, device_map="auto", dtype=torch.float16, **common)
 
 
 class HfBackend(ChatBackend):

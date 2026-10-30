@@ -83,6 +83,21 @@ def test_chatml_fallback_renders():
     assert out.endswith("<|im_start|>assistant\n")
 
 
+def test_cached_diffusion_models_are_told_apart(monkeypatch):
+    from types import SimpleNamespace as Item
+
+    from workstation.hub import cache
+
+    def repo(repo_id, *names):
+        files = [Item(file_name=name, size_on_disk=1) for name in names]
+        return Item(repo_id=repo_id, size_on_disk=1, revisions=[Item(files=files)])
+
+    repos = [repo("a/sd", "model_index.json"), repo("b/text", "config.json"), repo("c/q", "m.gguf")]
+    monkeypatch.setattr(cache, "_cache_dirs", lambda: [None])
+    monkeypatch.setattr(cache, "_scan", lambda _: repos)
+    assert {m["id"]: m["kind"] for m in cache.list_cached()} == {"a/sd": "diffusion", "b/text": "repo", "c/q/m.gguf": "gguf"}
+
+
 def test_download_progress_is_tracked_without_a_terminal():
     import tqdm
 
