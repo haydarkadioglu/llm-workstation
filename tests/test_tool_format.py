@@ -71,7 +71,8 @@ def test_missing_closing_brace_is_repaired():
 
 def test_braces_inside_strings_do_not_break_valid_json():
     calls, error = parse_calls('{"name": "get_price", "arguments": {"sku": "{A"}}')
-    assert error is None or not calls
+    assert error is None
+    assert calls[0].arguments == {"sku": "{A"}
 
 
 def test_call_fenced_inside_prose_is_rescued():
@@ -96,7 +97,7 @@ def test_openai_shaped_call():
 
 
 def test_broken_json_reports_error():
-    _, parser = run('<tool_call>{"name": "get_price", "arguments": {</tool_call>')
+    _, parser = run('<tool_call>{"name": "get_price", "arguments": {"sku": <sku>}}</tool_call>')
     assert not parser.calls
     assert parser.errors
 

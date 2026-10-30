@@ -70,9 +70,7 @@ def _repair_braces(text: str) -> str:
     return text + "}" * missing if missing > 0 else text
 
 
-def parse_calls(text: str) -> Tuple[List[ToolCall], Optional[str]]:
-    """Parse a tool call payload. Returns (calls, error when it is broken JSON)."""
-    text = _repair_braces(_strip_fence(text))
+def _decode_values(text: str) -> List[Any]:
     decoder = json.JSONDecoder()
     items: List[Any] = []
     index = 0
@@ -80,13 +78,22 @@ def parse_calls(text: str) -> Tuple[List[ToolCall], Optional[str]]:
         if text[index] in " \n\r\t,;":
             index += 1
             continue
+        value, index = decoder.raw_decode(text, index)
+        items.extend(value if isinstance(value, list) else [value])
+    return items
+
+
+def parse_calls(text: str) -> Tuple[List[ToolCall], Optional[str]]:
+    """Parse a tool call payload. Returns (calls, error when it is broken JSON)."""
+    text = _strip_fence(text)
+    try:
+        items = _decode_values(text)
+    except ValueError:
         try:
-            value, index = decoder.raw_decode(text, index)
+            items = _decode_values(_repair_braces(text))
         except ValueError as err:
             return [], f"Invalid tool call JSON ({err}): {text[:300]}"
-        items.extend(value if isinstance(value, list) else [value])
-    calls = [call for call in map(_to_call, items) if call]
-    return calls, None
+    return [call for call in map(_to_call, items) if call], None
 
 
 class StreamParser:
