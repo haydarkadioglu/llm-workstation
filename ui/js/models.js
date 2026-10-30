@@ -46,9 +46,26 @@ function renderStats(t) {
   $("stats").replaceChildren(...cards);
 }
 
+function renderLoadControl(t) {
+  const downloading = t.load_state === "downloading";
+  const paused = t.load_state === "paused";
+  $("loadControl").classList.toggle("hidden", !downloading && !paused);
+  $("loadPause").classList.toggle("hidden", !downloading);
+  $("loadResume").classList.toggle("hidden", !paused);
+  if (downloading || paused) {
+    const name = (t.loading_model || "").split(/[\\/]/).pop();
+    $("loadControlText").textContent = `${name}: ${t.model_status}`;
+  }
+}
+
+function controlLoad(action) {
+  return () => api.post(`/api/model/load/${action}`).catch(showError);
+}
+
 function renderStatus(t) {
-  const loading = !["Ready", "No model loaded", "Error loading model"].includes(t.model_status);
+  const loading = t.load_state !== "idle";
   const failed = t.model_status === "Error loading model";
+  renderLoadControl(t);
   $("statusDot").className = `dot ${failed ? "bad" : loading ? "busy" : t.current_model ? "ok" : ""}`;
   const name = t.current_model ? t.current_model.split(/[\\/]/).pop() : "";
   $("statusText").textContent = loading || failed || !name ? t.model_status : name;
@@ -230,6 +247,9 @@ async function fillSavedSettings() {
 
 export function initModels() {
   document.querySelectorAll("[data-model-loader]").forEach(buildMediaLoader);
+  $("loadPause").addEventListener("click", controlLoad("pause"));
+  $("loadResume").addEventListener("click", controlLoad("resume"));
+  $("loadCancel").addEventListener("click", controlLoad("cancel"));
   for (const [label, id] of PRESETS) {
     $("presets").append(
       el("button", {

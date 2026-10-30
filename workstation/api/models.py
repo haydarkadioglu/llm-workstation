@@ -33,6 +33,27 @@ def load_model(payload: LoadPayload, request: Request):
     return {"message": f"Loading '{payload.model_id}'."}
 
 
+def _control(done: bool) -> dict:
+    if not done:
+        raise HTTPException(status_code=409, detail="No download to control right now.")
+    return {"status": "ok"}
+
+
+@router.post("/api/model/load/pause")
+def pause_load(request: Request):
+    return _control(request.app.state.manager.pause_load())
+
+
+@router.post("/api/model/load/resume")
+def resume_load(request: Request):
+    return _control(request.app.state.manager.resume_load())
+
+
+@router.post("/api/model/load/cancel")
+def cancel_load(request: Request):
+    return _control(request.app.state.manager.cancel_load())
+
+
 @router.post("/api/model/unload")
 def unload_model(request: Request):
     request.app.state.manager.unload()

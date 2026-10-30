@@ -24,6 +24,17 @@ The default `llama-cpp-python` build runs on the CPU. For GPU layers, rebuild it
 CMAKE_ARGS="-DGGML_CUDA=on" pip install --force-reinstall --no-cache-dir llama-cpp-python
 ```
 
+## Downloads
+
+While a model downloads, a bar under the menu offers **Pause** and **Cancel**, on every tab.
+
+- **Pause** stops at once and keeps what has arrived. **Resume** continues from there.
+- **Cancel** stops and deletes the partial files.
+- The partial file also survives a restart: load the same model again to continue.
+- Chat models download over plain HTTP so they can resume. `--fast-download` uses hf_xet instead, which can be several times faster on servers like Colab, but a paused download then starts over.
+- Image and video models always start over after a pause, because the pipeline chooses its files while downloading.
+- Pausing and cancelling work during the download only, not while weights load into memory.
+
 ## Options
 
 | Argument | Default | Description |
@@ -34,6 +45,7 @@ CMAKE_ARGS="-DGGML_CUDA=on" pip install --force-reinstall --no-cache-dir llama-c
 | `--no-model` | | Start without loading a model. |
 | `--no-tunnel` | | Do not open a Cloudflare tunnel. |
 | `--mcp-stdio` | | Serve MCP over stdio instead of HTTP. |
+| `--fast-download` | | Use hf_xet for chat models: faster, but a paused download starts over. |
 
 Settings, saved MCP servers and chats live in `~/.llm-workstation`. Set `LLM_WORKSTATION_HOME` to move them.
 

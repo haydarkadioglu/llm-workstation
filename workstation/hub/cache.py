@@ -2,7 +2,8 @@ import shutil
 from pathlib import Path
 from typing import List, Optional
 
-from huggingface_hub import HfApi, hf_hub_download, scan_cache_dir, snapshot_download
+from huggingface_hub import HfApi, constants, hf_hub_download, scan_cache_dir, snapshot_download
+from huggingface_hub.utils import filter_repo_objects
 
 from ..engine.gguf import shard_names, split_gguf_id
 from . import drive
@@ -25,6 +26,17 @@ def _scan(cache: Optional[str]):
     except Exception as err:
         print(f"[Cache] Could not scan {cache or 'default cache'}: {err}")
         return []
+
+
+def gguf_files(model_id: str) -> tuple:
+    repo_id, filename = split_gguf_id(model_id)
+    return repo_id, shard_names(filename)
+
+
+def repo_files(repo_id: str, token: Optional[str]) -> List[str]:
+    """The files download_repo would fetch."""
+    files = HfApi().list_repo_files(repo_id, token=token)
+    return list(filter_repo_objects(files, allow_patterns=CONFIG_PATTERNS + _weight_patterns(repo_id, token)))
 
 
 def download_gguf(model_id: str, token: Optional[str]) -> tuple:
@@ -92,6 +104,20 @@ def _delete_gguf(repo, filename: str) -> None:
     ]
     if not remaining:
         shutil.rmtree(repo.repo_path)
+
+
+def discard_partial(model_id: str) -> None:
+    """Remove what a cancelled download left behind, keeping any finished files."""
+    repo_id = split_gguf_id(model_id)[0] if model_id.lower().endswith(".gguf") else model_id
+    folder = "models--" + repo_id.replace("/", "--")
+    for cache in _cache_dirs():
+        repo_path = Path(cache or constants.HF_HUB_CACHE) / folder
+        for pattern in ("*.incomplete", "*.partial"):
+            for partial in repo_path.rglob(pattern):
+                partial.unlink(missing_ok=True)
+        blobs = repo_path / "blobs"
+        if repo_path.is_dir() and not (blobs.is_dir() and any(blobs.iterdir())):
+            shutil.rmtree(repo_path, ignore_errors=True)
 
 
 def delete_cached(model_id: str) -> bool:

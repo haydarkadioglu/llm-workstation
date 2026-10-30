@@ -1,8 +1,10 @@
 import argparse
+import os
 
 import uvicorn
 
 from workstation.config import DEFAULT_MODEL, Settings
+from workstation.hub.download_worker import FAST_DOWNLOAD
 
 
 def parse_args() -> argparse.Namespace:
@@ -13,6 +15,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--no-model", action="store_true", help="Start without loading a model")
     parser.add_argument("--no-tunnel", action="store_true", help="Disable the Cloudflare tunnel")
     parser.add_argument("--mcp-stdio", action="store_true", help="Serve MCP over stdio instead of HTTP")
+    parser.add_argument("--fast-download", action="store_true", help="Use hf_xet for chat models: faster, but a paused download restarts")
     return parser.parse_args()
 
 
@@ -28,6 +31,8 @@ def run_stdio(model: str) -> None:
 
 def main() -> None:
     args = parse_args()
+    if args.fast_download:
+        os.environ[FAST_DOWNLOAD] = "1"
     model = None if args.no_model else args.model
     if args.mcp_stdio:
         run_stdio(model)

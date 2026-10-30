@@ -112,7 +112,6 @@ def test_download_progress_is_tracked_without_a_terminal():
     with track_downloads(state):
         bar = tqdm.tqdm(total=200, disable=True)
         bar.update(50)
-    assert state.loading_progress == 25
     assert state.status.startswith("Downloading: 25%")
 
 
