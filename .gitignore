@@ -18,8 +18,4 @@ ENV/
 .pytest_cache/
 .mypy_cache/
 
-# Local workstation credentials & tunnel binary
-cloudflared
-cloudflared.exe
 *.log
-hf_download_speed_*.json

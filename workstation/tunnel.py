@@ -1,12 +1,12 @@
 import os
 import re
-import sys
-import time
 import platform
 import threading
 import subprocess
 import urllib.request
 from typing import Optional
+
+from .config import DATA_DIR
 
 CLOUDFLARE_URL = None
 
@@ -32,9 +32,11 @@ def download_cloudflared() -> Optional[str]:
         print(f"[Cloudflare] Unsupported OS/Platform: {system} {machine}")
         return None
 
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    bin_name = str(DATA_DIR / bin_name)
     if os.path.exists(bin_name):
-        print(f"[Cloudflare] Found existing binary: {os.path.abspath(bin_name)}")
-        return os.path.abspath(bin_name)
+        print(f"[Cloudflare] Found existing binary: {bin_name}")
+        return bin_name
 
     print(f"[Cloudflare] Downloading {bin_name} from: {url}")
     try:
